@@ -202,6 +202,84 @@
     return weightedPick(pool, cards, opts.rng);
   }
 
+  /* ===================================================================
+     Abschnitt 3 — Speicherschicht
+     =================================================================== */
+
+  var STORAGE_KEY = 'mathelerner.v1';
+  var STATE_VERSION = 1;
+  var DEFAULT_SETTINGS = { tts: false, stt: false, thresholdMs: DEFAULT_THRESHOLD_MS };
+
+  function defaultState() {
+    return { version: STATE_VERSION, activeProfile: null, profiles: {} };
+  }
+
+  function newProfile(name, now) {
+    var cards = {};
+    for (var i = 0; i < ALL_CARD_KEYS.length; i++) cards[ALL_CARD_KEYS[i]] = newCard();
+    return {
+      name: name,
+      created: now,
+      settings: { tts: DEFAULT_SETTINGS.tts, stt: DEFAULT_SETTINGS.stt,
+                  thresholdMs: DEFAULT_SETTINGS.thresholdMs },
+      cards: cards,
+      stats: { sessions: 0, totalAnswers: 0 }
+    };
+  }
+
+  function loadState(storage) {
+    var raw;
+    try { raw = storage.getItem(STORAGE_KEY); } catch (e) { return defaultState(); }
+    if (!raw) return defaultState();
+    var parsed;
+    try { parsed = JSON.parse(raw); } catch (e) { return defaultState(); }
+    if (!parsed || typeof parsed !== 'object') return defaultState();
+    if (parsed.version !== STATE_VERSION) return defaultState();
+    if (!parsed.profiles || typeof parsed.profiles !== 'object') return defaultState();
+    return parsed;
+  }
+
+  function saveState(storage, state) {
+    try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* voll oder gesperrt */ }
+  }
+
+  function nextProfileId(profiles) {
+    var n = 1;
+    while (profiles['p' + n]) n++;
+    return 'p' + n;
+  }
+
+  function createProfile(state, name, now) {
+    var profiles = {}, keys = Object.keys(state.profiles), i;
+    for (i = 0; i < keys.length; i++) profiles[keys[i]] = state.profiles[keys[i]];
+    var id = nextProfileId(profiles);
+    profiles[id] = newProfile(name, now);
+    return {
+      state: { version: STATE_VERSION, activeProfile: id, profiles: profiles },
+      id: id
+    };
+  }
+
+  function deleteProfile(state, id) {
+    var profiles = {}, keys = Object.keys(state.profiles), i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i] !== id) profiles[keys[i]] = state.profiles[keys[i]];
+    }
+    var remaining = Object.keys(profiles);
+    var active = state.activeProfile === id
+      ? (remaining.length > 0 ? remaining[0] : null)
+      : state.activeProfile;
+    return { version: STATE_VERSION, activeProfile: active, profiles: profiles };
+  }
+
+  function openCount(profile) {
+    var keys = Object.keys(profile.cards), n = 0;
+    for (var i = 0; i < keys.length; i++) {
+      if (profile.cards[keys[i]].box < BOX_MASTERED) n++;
+    }
+    return n;
+  }
+
   return {
     parseGermanNumber: parseGermanNumber,
     _spellGerman: spellGerman,
@@ -218,6 +296,15 @@
     BOX_WEIGHTS: BOX_WEIGHTS,
     RECENT_MEMORY: RECENT_MEMORY,
     REFRESH_EVERY: REFRESH_EVERY,
-    pickNext: pickNext
+    pickNext: pickNext,
+    STORAGE_KEY: STORAGE_KEY,
+    DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    defaultState: defaultState,
+    newProfile: newProfile,
+    loadState: loadState,
+    saveState: saveState,
+    createProfile: createProfile,
+    deleteProfile: deleteProfile,
+    openCount: openCount
   };
 });
