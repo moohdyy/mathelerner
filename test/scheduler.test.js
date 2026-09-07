@@ -116,3 +116,54 @@ test('verpatzte Auffrischung setzt die Karte komplett zurück', () => {
   assert.strictEqual(c.refreshLevel, 0);
   assert.strictEqual(c.due, 0);
 });
+
+function cardsFrom(spec) {
+  // spec: { "1x1": 0, "2x2": 3, ... }  Wert = Box
+  const cards = {};
+  for (const [key, box] of Object.entries(spec)) {
+    cards[key] = { ...ML.newCard(), box };
+  }
+  return cards;
+}
+
+function pick(cards, over = {}) {
+  return ML.pickNext(cards, {
+    now: NOW, recent: [], answered: 0, refreshesShown: 0,
+    rng: () => 0, ...over
+  });
+}
+
+test('wählt aus der Lernphase und ignoriert gemeisterte Karten', () => {
+  const cards = cardsFrom({ '1x1': ML.BOX_MASTERED, '2x2': 1 });
+  cards['1x1'].due = NOW + ML.DAY_MS; // nicht fällig
+  assert.strictEqual(pick(cards), '2x2');
+});
+
+test('Box-Gewichte 3/2/1 bestimmen die Trefferbereiche', () => {
+  // Reihenfolge der Schlüssel: 1x1 (Box 0, Gewicht 3),
+  // 2x2 (Box 1, Gewicht 2), 3x3 (Box 2, Gewicht 1). Summe 6.
+  const cards = cardsFrom({ '1x1': 0, '2x2': 1, '3x3': 2 });
+  const at = (r) => pick(cards, { rng: () => r });
+  assert.strictEqual(at(0.0), '1x1');
+  assert.strictEqual(at(0.49), '1x1');  // Anteil 0   bis 3/6
+  assert.strictEqual(at(0.5), '2x2');   // Anteil 3/6 bis 5/6
+  assert.strictEqual(at(0.8), '2x2');
+  assert.strictEqual(at(0.9), '3x3');   // Anteil 5/6 bis 1
+  assert.strictEqual(at(0.999), '3x3');
+});
+
+test('die letzten drei Karten werden übersprungen', () => {
+  const cards = cardsFrom({ '1x1': 0, '2x2': 0, '3x3': 0, '4x4': 0 });
+  const got = pick(cards, { recent: ['1x1', '2x2', '3x3'] });
+  assert.strictEqual(got, '4x4');
+});
+
+test('bei zu kleinem Pool greift die Wiederholungssperre nicht', () => {
+  const cards = cardsFrom({ '1x1': 0 });
+  assert.strictEqual(pick(cards, { recent: ['1x1'] }), '1x1');
+});
+
+test('RECENT_MEMORY ist 3 und BOX_WEIGHTS sind 3/2/1', () => {
+  assert.strictEqual(ML.RECENT_MEMORY, 3);
+  assert.deepStrictEqual(ML.BOX_WEIGHTS, [3, 2, 1]);
+});

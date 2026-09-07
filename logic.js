@@ -154,6 +154,40 @@
     return next;
   }
 
+  var BOX_WEIGHTS = [3, 2, 1];
+  var RECENT_MEMORY = 3;
+
+  function weightedPick(keys, cards, rng) {
+    var total = 0, i;
+    for (i = 0; i < keys.length; i++) total += BOX_WEIGHTS[cards[keys[i]].box];
+    var roll = rng() * total;
+    for (i = 0; i < keys.length; i++) {
+      roll -= BOX_WEIGHTS[cards[keys[i]].box];
+      if (roll < 0) return keys[i];
+    }
+    return keys[keys.length - 1]; // Absicherung gegen Rundungsfehler
+  }
+
+  function pickNext(cards, opts) {
+    var recent = opts.recent.slice(-RECENT_MEMORY);
+    var keys = Object.keys(cards);
+    var i, key;
+
+    var learning = [];
+    for (i = 0; i < keys.length; i++) {
+      key = keys[i];
+      if (cards[key].box < BOX_MASTERED) learning.push(key);
+    }
+
+    if (learning.length === 0) return null;
+
+    // Wiederholungssperre nur anwenden, wenn danach noch etwas übrig bleibt.
+    var filtered = learning.filter(function (k) { return recent.indexOf(k) === -1; });
+    var pool = filtered.length > 0 ? filtered : learning;
+
+    return weightedPick(pool, cards, opts.rng);
+  }
+
   return {
     parseGermanNumber: parseGermanNumber,
     _spellGerman: spellGerman,
@@ -166,6 +200,9 @@
     REFRESH_INTERVALS_MS: REFRESH_INTERVALS_MS,
     DEFAULT_THRESHOLD_MS: DEFAULT_THRESHOLD_MS,
     STT_THRESHOLD_BONUS_MS: STT_THRESHOLD_BONUS_MS,
-    gradeAnswer: gradeAnswer
+    gradeAnswer: gradeAnswer,
+    BOX_WEIGHTS: BOX_WEIGHTS,
+    RECENT_MEMORY: RECENT_MEMORY,
+    pickNext: pickNext
   };
 });
