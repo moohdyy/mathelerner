@@ -286,7 +286,7 @@ Und erweitere das Rückgabeobjekt am Dateiende:
 - [ ] **Step 8: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 6 Tests. Falls der 0–999-Test fehlschlägt, nennt die
+Expected: PASS, 7 Tests. Falls der 0–999-Test fehlschlägt, nennt die
 Fehlermeldung die konkrete Zahl und ihre Wortform — dort liegt die Lücke.
 
 - [ ] **Step 9: Commit**
@@ -392,7 +392,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 9 Tests
+Expected: PASS, 10 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -555,7 +555,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 16 Tests
+Expected: PASS, 17 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -661,7 +661,7 @@ Ersetze in `logic.js` den Rumpf von `gradeAnswer` ab `var hit = ...` durch:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 19 Tests
+Expected: PASS, 20 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -810,7 +810,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 24 Tests
+Expected: PASS, 25 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -948,7 +948,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 31 Tests
+Expected: PASS, 32 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -1196,7 +1196,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests
+Expected: PASS, 42 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -1456,7 +1456,7 @@ Erstelle `index.html`:
 - [ ] **Step 2: Sicherstellen, dass die Logiktests weiterhin grün sind**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests (unverändert — `index.html` wird nicht getestet)
+Expected: PASS, 42 Tests (unverändert — `index.html` wird nicht getestet)
 
 - [ ] **Step 3: Manuell im Browser prüfen**
 
@@ -1663,7 +1663,7 @@ openMenu: openMenu, closeMenu: closeMenu`.
 - [ ] **Step 3: Logiktests weiterhin grün**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests
+Expected: PASS, 42 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
 
@@ -1829,7 +1829,7 @@ Ergänze `renderTtsButton();` direkt vor `nextQuestion();` am Skriptende und
 - [ ] **Step 4: Logiktests weiterhin grün**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests
+Expected: PASS, 42 Tests
 
 - [ ] **Step 5: Manuell im Browser prüfen**
 
@@ -2061,7 +2061,7 @@ und in `submitAnswer` im `else`-Zweig (falsche Antwort) direkt nach
 - [ ] **Step 5: Logiktests weiterhin grün**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests
+Expected: PASS, 42 Tests
 
 - [ ] **Step 6: Manuell im Browser prüfen**
 
@@ -2162,7 +2162,7 @@ Ergänze am Ende von `renderMenu()` die Zeile `renderStats();`.
 - [ ] **Step 3: Logiktests weiterhin grün**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests
+Expected: PASS, 42 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
 
@@ -2262,7 +2262,7 @@ und ein echtes Mikrofon.
 - [ ] **Step 2: Vollständigen Testlauf durchführen**
 
 Run: `node --test test/`
-Expected: PASS, 41 Tests, keine Fehlschläge
+Expected: PASS, 42 Tests, keine Fehlschläge
 
 - [ ] **Step 3: Abschließende Gesamtverifikation im Browser**
 
