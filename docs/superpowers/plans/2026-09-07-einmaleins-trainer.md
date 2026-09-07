@@ -144,6 +144,20 @@ test('erkennt einfache Zahlwörter', () => {
   assert.strictEqual(ML.parseGermanNumber('achtundvierzig'), 48);
   assert.strictEqual(ML.parseGermanNumber('hundert'), 100);
   assert.strictEqual(ML.parseGermanNumber('einhundert'), 100);
+  assert.strictEqual(ML.parseGermanNumber('hundertfünf'), 105);
+  assert.strictEqual(ML.parseGermanNumber('einhundertfünf'), 105);
+  assert.strictEqual(ML.parseGermanNumber('hundertdreiundzwanzig'), 123);
+  assert.strictEqual(ML.parseGermanNumber('zwei hundert drei und vierzig'), 243);
+});
+
+test('kein Wort steht für zwei verschiedene Zahlen', () => {
+  // Absicherung der generativen Tabelle gegen Kollisionen.
+  const seen = new Map();
+  for (let n = 0; n <= 999; n++) {
+    const w = ML._spellGerman(n);
+    assert.ok(!seen.has(w), `"${w}" steht für ${seen.get(w)} und ${n}`);
+    seen.set(w, n);
+  }
 });
 
 test('erkennt jede Zahl von 0 bis 999 in ihrer Wortform', () => {
@@ -218,11 +232,16 @@ Ersetze in `logic.js` Abschnitt 1 vollständig durch:
   var WORD_TO_NUMBER = (function () {
     var map = Object.create(null);
     for (var n = 0; n <= 999; n++) map[normalizeWord(spellGerman(n))] = n;
+    // "hundertfünf" ist im Deutschen üblicher als "einhundertfünf"; die
+    // generative Tabelle erzeugt nur die lange Form. Für 100-199 zusätzlich
+    // die Form ohne führendes "ein" eintragen (3 Zeichen abschneiden).
+    for (var h = 100; h <= 199; h++) {
+      map[normalizeWord(spellGerman(h)).slice(3)] = h;
+    }
     // Formen, die die generative Tabelle nicht erzeugt:
     map[normalizeWord('eins')] = 1;      // "ein" wird erzeugt, gesprochen wird "eins"
     map[normalizeWord('eine')] = 1;
     map[normalizeWord('zwo')] = 2;       // häufige Fehlerkennung
-    map[normalizeWord('hundert')] = 100; // ohne führendes "ein"
     return map;
   })();
 
@@ -2291,6 +2310,13 @@ unter genau diesen Namen benutzt. `session.startedAt`, `session.awaitingAck`,
 angelegt und in Tasks 10–11 unter denselben Namen erweitert. `submitAnswer`
 bekommt in Task 11 einen dritten Parameter; die Aufrufe aus Task 8 übergeben ihn
 nicht und laufen über den `typeof`-Zweig weiter korrekt.
+
+**Vorab verifiziert.** Der generative Zahlwort-Aufbau und die gewichtete
+Auswahl aus Task 5 wurden vor der Übergabe in Node durchgespielt: Rundlauf
+0–999 fehlerfrei, keine Wortkollisionen, alle Grenzwerte der `rng`-Bereiche
+wie im Test erwartet. Dabei fiel auf, dass `"hundertfünf"` ohne Zusatzeintrag
+nicht erkannt worden wäre — die Tabelle für 100–199 wurde entsprechend
+ergänzt und der Testfall aufgenommen.
 
 **Bekannte bewusste Auslassung.** Der Abschlussbildschirm aus Task 8 wird nur
 erreicht, wenn `pickNext` `null` liefert. Das ist erst nach vollständiger
