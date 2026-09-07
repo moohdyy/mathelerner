@@ -167,3 +167,46 @@ test('RECENT_MEMORY ist 3 und BOX_WEIGHTS sind 3/2/1', () => {
   assert.strictEqual(ML.RECENT_MEMORY, 3);
   assert.deepStrictEqual(ML.BOX_WEIGHTS, [3, 2, 1]);
 });
+
+function dueRefresh(cards, key, dueAt) {
+  cards[key] = { ...ML.newCard(), box: ML.BOX_MASTERED, due: dueAt };
+  return cards;
+}
+
+test('eine fällige Auffrischung hat Vorrang, solange die Quote es erlaubt', () => {
+  const cards = dueRefresh(cardsFrom({ '2x2': 0 }), '1x1', NOW - 1000);
+  assert.strictEqual(pick(cards, { answered: 0, refreshesShown: 0 }), '1x1');
+});
+
+test('nicht fällige gemeisterte Karten werden nicht gestellt', () => {
+  const cards = dueRefresh(cardsFrom({ '2x2': 0 }), '1x1', NOW + ML.DAY_MS);
+  assert.strictEqual(pick(cards, { answered: 0, refreshesShown: 0 }), '2x2');
+});
+
+test('die Quote lässt höchstens jede fünfte Aufgabe eine Auffrischung sein', () => {
+  const cards = dueRefresh(cardsFrom({ '2x2': 0 }), '1x1', NOW - 1000);
+  // Eine Auffrischung ist bereits gezeigt: bis zur 5. Antwort keine weitere.
+  assert.strictEqual(pick(cards, { answered: 1, refreshesShown: 1 }), '2x2');
+  assert.strictEqual(pick(cards, { answered: 4, refreshesShown: 1 }), '2x2');
+  assert.strictEqual(pick(cards, { answered: 5, refreshesShown: 1 }), '1x1');
+});
+
+test('ohne Lernkarten wird die Auffrischung auch gegen die Quote gestellt', () => {
+  const cards = dueRefresh({}, '1x1', NOW - 1000);
+  assert.strictEqual(pick(cards, { answered: 1, refreshesShown: 1 }), '1x1');
+});
+
+test('die am längsten überfällige Karte kommt zuerst', () => {
+  let cards = dueRefresh({}, '1x1', NOW - 1000);
+  cards = dueRefresh(cards, '2x2', NOW - 90000);
+  assert.strictEqual(pick(cards), '2x2');
+});
+
+test('alles gemeistert und nichts fällig ergibt null', () => {
+  const cards = dueRefresh({}, '1x1', NOW + ML.DAY_MS);
+  assert.strictEqual(pick(cards), null);
+});
+
+test('REFRESH_EVERY ist 5', () => {
+  assert.strictEqual(ML.REFRESH_EVERY, 5);
+});

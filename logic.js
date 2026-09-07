@@ -168,20 +168,34 @@
     return keys[keys.length - 1]; // Absicherung gegen Rundungsfehler
   }
 
+  var REFRESH_EVERY = 5;
+
   function pickNext(cards, opts) {
     var recent = opts.recent.slice(-RECENT_MEMORY);
     var keys = Object.keys(cards);
-    var i, key;
+    var i, key, card;
 
     var learning = [];
+    var due = [];
     for (i = 0; i < keys.length; i++) {
       key = keys[i];
-      if (cards[key].box < BOX_MASTERED) learning.push(key);
+      card = cards[key];
+      if (card.box < BOX_MASTERED) learning.push(key);
+      else if (card.due > 0 && card.due <= opts.now) due.push(key);
+    }
+
+    // Am längsten überfällig zuerst — deterministisch.
+    due.sort(function (x, y) { return cards[x].due - cards[y].due; });
+
+    var quotaAllows = opts.refreshesShown * REFRESH_EVERY <= opts.answered;
+    if (due.length > 0 && (quotaAllows || learning.length === 0)) {
+      var freshDue = due.filter(function (k) { return recent.indexOf(k) === -1; });
+      if (freshDue.length > 0) return freshDue[0];
+      if (learning.length === 0) return due[0];
     }
 
     if (learning.length === 0) return null;
 
-    // Wiederholungssperre nur anwenden, wenn danach noch etwas übrig bleibt.
     var filtered = learning.filter(function (k) { return recent.indexOf(k) === -1; });
     var pool = filtered.length > 0 ? filtered : learning;
 
@@ -203,6 +217,7 @@
     gradeAnswer: gradeAnswer,
     BOX_WEIGHTS: BOX_WEIGHTS,
     RECENT_MEMORY: RECENT_MEMORY,
+    REFRESH_EVERY: REFRESH_EVERY,
     pickNext: pickNext
   };
 });
