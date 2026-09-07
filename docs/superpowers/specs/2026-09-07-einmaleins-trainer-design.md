@@ -82,6 +82,10 @@ getrennte Karten, weil Lernende oft nur eine Richtung sicher beherrschen. Alle
 Mehrere Profile teilen sich denselben Key, jedes mit eigenem Lernstand und
 eigenen Einstellungen. Beim Start wird das zuletzt aktive Profil geladen.
 
+Eine „Sitzung" ist ein Laden der Seite mit mindestens einer beantworteten
+Aufgabe; `stats.sessions` zählt diese. Die Auffrischungsquote (siehe unten) wird
+pro Sitzung geführt und nicht persistiert.
+
 ## Lernalgorithmus
 
 ### Boxen
@@ -115,8 +119,11 @@ Gemeisterte Karten (Box 3) bekommen ein Fälligkeitsdatum `due`, gesteuert über
 | 2 und höher | +30 Tage |
 
 Eine fällige Auffrischung, die richtig und schnell beantwortet wird, erhöht
-`refreshLevel` und setzt ein neues `due`. Eine falsch beantwortete Auffrischung
-setzt die Karte auf `box: 0` und `refreshLevel: 0` zurück.
+`refreshLevel` und setzt ein neues `due`. Wird sie richtig, aber zu langsam
+beantwortet, bleibt die Karte gemeistert und `refreshLevel` unverändert; das
+`due` wird mit demselben Intervall neu gesetzt, die Karte kommt also nach
+gleicher Frist erneut. Eine falsch beantwortete Auffrischung setzt die Karte auf
+`box: 0` und `refreshLevel: 0` zurück.
 
 Fällige Auffrischungen dürfen höchstens **jede fünfte** Aufgabe einer Sitzung
 stellen. Sonst besteht eine Sitzung irgendwann nur noch aus Wiederholung statt
@@ -137,7 +144,9 @@ aus den Problemfällen.
 
 Ohne Mikrofon: Uhr startet, wenn die Aufgabe sichtbar wird — bei aktiver
 Sprachausgabe erst, wenn das Vorlesen endet (`utterance.onend`). Sie stoppt bei
-der Eingabebestätigung.
+der Eingabebestätigung. `lastMs` wird bei jeder gewerteten Antwort geschrieben,
+`bestMs` nur bei richtigen Antworten aktualisiert — eine schnelle falsche Antwort
+darf keine Bestzeit werden.
 
 Mit Mikrofon ist eine exakte Messung nicht möglich, weil die Erkennung selbst
 0,5–1,5 s benötigt, die nicht in die Zeit einfließen dürfen. Gemessen wird
@@ -161,7 +170,8 @@ einen Moment stehenbleiben.
 
 Ablenkungsfrei bedeutet konkret: keine Punkte, Sterne, Sounds, Maskottchen oder
 Animationen außer dem Farbblitz. Einziger dauerhaft sichtbarer Zusatz ist eine
-dezente Zeile „noch N von 100 offen" — der schrumpfende Stapel ist der Motivator.
+dezente Zeile „noch N von 100 offen", wobei N die Zahl der Karten unterhalb von
+Box 3 ist — der schrumpfende Stapel ist der Motivator.
 
 Oben rechts zwei kleine Schalter: 🔊 Vorlesen und 🎤 Mikrofon, unabhängig
 voneinander. Die Aufgabe ist immer auch sichtbar, auch bei aktivem Vorlesen.
@@ -191,8 +201,11 @@ serverbasierte Weg, ohne Bruch für den Nutzer.
 Der Zahlenparser verarbeitet: Ziffernform (`"48"`), zusammengeschriebene
 Zahlwörter (`"achtundvierzig"`), getrennt geschriebene Formen
 (`"acht und vierzig"`), Satzzeichen und Groß-/Kleinschreibung, Einbettung in
-einen Satz sowie die häufige Fehlerkennung `"zwo"` → 2. Gültiger Wertebereich
-ist 1–100; alles andere liefert `null`.
+einen Satz sowie die häufige Fehlerkennung `"zwo"` → 2. Erkannt wird der Bereich
+0–999, nicht nur der Bereich möglicher richtiger Antworten: Eine falsche Antwort
+wie `"null"` oder `"hundertzwanzig"` muss als Zahl ankommen und als falsch
+gewertet werden, statt als „nicht verstanden" durchzurutschen. Nur was gar keine
+Zahl ergibt, liefert `null`.
 
 ## Fehlerverhalten
 
