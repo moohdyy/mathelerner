@@ -94,3 +94,19 @@ test('openCount zählt die Karten unterhalb von Box 3', () => {
   p.cards['1x1'].box = 2;
   assert.strictEqual(ML.openCount(p), 99);
 });
+
+test('jedes Profil hat sein eigenes Einstellungsobjekt', () => {
+  let r = ML.createProfile(ML.defaultState(), 'Anna', NOW);
+  r = ML.createProfile(r.state, 'Ben', NOW);
+  const a = r.state.profiles.p1;
+  const b = r.state.profiles.p2;
+
+  assert.notStrictEqual(a.settings, b.settings, 'keine geteilte Referenz zwischen Profilen');
+  assert.notStrictEqual(a.settings, ML.DEFAULT_SETTINGS, 'keine Referenz auf die Vorgabewerte');
+
+  a.settings.thresholdMs = 9999;
+  assert.strictEqual(b.settings.thresholdMs, ML.DEFAULT_SETTINGS.thresholdMs,
+    'das andere Profil bleibt unberührt');
+  assert.strictEqual(ML.DEFAULT_SETTINGS.thresholdMs, 3000,
+    'die Vorgabewerte selbst bleiben unberührt');
+});

@@ -1142,7 +1142,11 @@ Füge in `logic.js` nach Abschnitt 2 und vor dem `return`-Block ein:
   }
 
   function saveState(storage, state) {
-    try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* voll oder gesperrt */ }
+    // Serialisieren bewusst AUSSERHALB des Schutzes: ein unserialisierbarer
+    // Zustand ist ein Programmierfehler und muss sichtbar werfen. Der Schutz
+    // gilt nur dem Schreibvorgang, der legitim scheitern kann.
+    var raw = JSON.stringify(state);
+    try { storage.setItem(STORAGE_KEY, raw); } catch (e) { /* Speicher voll oder gesperrt */ }
   }
 
   function nextProfileId(profiles) {
@@ -1200,7 +1204,7 @@ Erweitere das Rückgabeobjekt:
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
 Run: `node --test`
-Expected: PASS, 42 Tests
+Expected: PASS, 43 Tests
 
 - [ ] **Step 5: Commit**
 
@@ -1460,7 +1464,7 @@ Erstelle `index.html`:
 - [ ] **Step 2: Sicherstellen, dass die Logiktests weiterhin grün sind**
 
 Run: `node --test`
-Expected: PASS, 42 Tests (unverändert — `index.html` wird nicht getestet)
+Expected: PASS, 43 Tests (unverändert — `index.html` wird nicht getestet)
 
 - [ ] **Step 3: Manuell im Browser prüfen**
 
@@ -1667,7 +1671,7 @@ openMenu: openMenu, closeMenu: closeMenu`.
 - [ ] **Step 3: Logiktests weiterhin grün**
 
 Run: `node --test`
-Expected: PASS, 42 Tests
+Expected: PASS, 43 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
 
@@ -1833,7 +1837,7 @@ Ergänze `renderTtsButton();` direkt vor `nextQuestion();` am Skriptende und
 - [ ] **Step 4: Logiktests weiterhin grün**
 
 Run: `node --test`
-Expected: PASS, 42 Tests
+Expected: PASS, 43 Tests
 
 - [ ] **Step 5: Manuell im Browser prüfen**
 
@@ -2065,7 +2069,7 @@ und in `submitAnswer` im `else`-Zweig (falsche Antwort) direkt nach
 - [ ] **Step 5: Logiktests weiterhin grün**
 
 Run: `node --test`
-Expected: PASS, 42 Tests
+Expected: PASS, 43 Tests
 
 - [ ] **Step 6: Manuell im Browser prüfen**
 
@@ -2166,7 +2170,7 @@ Ergänze am Ende von `renderMenu()` die Zeile `renderStats();`.
 - [ ] **Step 3: Logiktests weiterhin grün**
 
 Run: `node --test`
-Expected: PASS, 42 Tests
+Expected: PASS, 43 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
 
@@ -2266,7 +2270,7 @@ und ein echtes Mikrofon.
 - [ ] **Step 2: Vollständigen Testlauf durchführen**
 
 Run: `node --test`
-Expected: PASS, 42 Tests, keine Fehlschläge
+Expected: PASS, 43 Tests, keine Fehlschläge
 
 - [ ] **Step 3: Abschließende Gesamtverifikation im Browser**
 

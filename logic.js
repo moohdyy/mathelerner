@@ -240,7 +240,8 @@
   }
 
   function saveState(storage, state) {
-    try { storage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* voll oder gesperrt */ }
+    var raw = JSON.stringify(state);
+    try { storage.setItem(STORAGE_KEY, raw); } catch (e) { /* Speicher voll oder gesperrt */ }
   }
 
   function nextProfileId(profiles) {
