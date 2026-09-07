@@ -136,12 +136,21 @@
       next.due = 0;
       return next;
     }
+
+    if (card.box === BOX_MASTERED) {
+      // Auffrischung: Treffer steigt eine Stufe, langsam wiederholt die Stufe.
+      if (hit) next.refreshLevel = card.refreshLevel + 1;
+      next.due = opts.now + refreshIntervalFor(next.refreshLevel);
+      return next;
+    }
+
     if (hit) {
       next.box = Math.min(card.box + 1, BOX_MASTERED);
       if (next.box === BOX_MASTERED) {
         next.due = opts.now + refreshIntervalFor(next.refreshLevel);
       }
     }
+    // richtig, aber zu langsam: Box bleibt unveraendert
     return next;
   }
 

@@ -9,6 +9,10 @@ function grade(card, correct, elapsedMs, now = NOW) {
   return ML.gradeAnswer(card, { correct, elapsedMs, thresholdMs: T, now });
 }
 
+function masteredCard(refreshLevel = 0) {
+  return { ...ML.newCard(), box: ML.BOX_MASTERED, refreshLevel, due: NOW - 1000 };
+}
+
 test('Kartenschlüssel wird gebildet und wieder zerlegt', () => {
   assert.strictEqual(ML.cardKey(7, 8), '7x8');
   assert.deepStrictEqual(ML.parseCardKey('7x8'), { a: 7, b: 8 });
@@ -82,4 +86,33 @@ test('gradeAnswer mutiert die übergebene Karte nicht', () => {
   const snapshot = { ...original };
   grade(original, true, 1000);
   assert.deepStrictEqual(original, snapshot);
+});
+
+test('erfolgreiche Auffrischung verlängert das Intervall 2 -> 7 -> 30 Tage', () => {
+  let c = grade(masteredCard(0), true, 1000);
+  assert.strictEqual(c.box, ML.BOX_MASTERED);
+  assert.strictEqual(c.refreshLevel, 1);
+  assert.strictEqual(c.due, NOW + ML.REFRESH_INTERVALS_MS[1], '7 Tage');
+
+  c = grade({ ...c, due: NOW - 1000 }, true, 1000);
+  assert.strictEqual(c.refreshLevel, 2);
+  assert.strictEqual(c.due, NOW + ML.REFRESH_INTERVALS_MS[2], '30 Tage');
+
+  c = grade({ ...c, due: NOW - 1000 }, true, 1000);
+  assert.strictEqual(c.refreshLevel, 3);
+  assert.strictEqual(c.due, NOW + ML.REFRESH_INTERVALS_MS[2], 'bleibt bei 30 Tagen');
+});
+
+test('langsame Auffrischung bleibt gemeistert und wiederholt dasselbe Intervall', () => {
+  const c = grade(masteredCard(1), true, 9000);
+  assert.strictEqual(c.box, ML.BOX_MASTERED);
+  assert.strictEqual(c.refreshLevel, 1, 'kein Aufstieg');
+  assert.strictEqual(c.due, NOW + ML.REFRESH_INTERVALS_MS[1], 'dasselbe Intervall erneut');
+});
+
+test('verpatzte Auffrischung setzt die Karte komplett zurück', () => {
+  const c = grade(masteredCard(2), false, 1000);
+  assert.strictEqual(c.box, 0);
+  assert.strictEqual(c.refreshLevel, 0);
+  assert.strictEqual(c.due, 0);
 });
