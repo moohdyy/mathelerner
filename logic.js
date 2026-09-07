@@ -150,7 +150,7 @@
         next.due = opts.now + refreshIntervalFor(next.refreshLevel);
       }
     }
-    // richtig, aber zu langsam: Box bleibt unveraendert
+    // richtig, aber zu langsam: Box bleibt unverändert
     return next;
   }
 
