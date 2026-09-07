@@ -81,8 +81,38 @@
     return best;
   }
 
+  /* ===================================================================
+     Abschnitt 2 — Karten und Scheduler
+     =================================================================== */
+
+  var BOX_MASTERED = 3;
+
+  function cardKey(a, b) { return a + 'x' + b; }
+
+  function parseCardKey(key) {
+    var parts = String(key).split('x');
+    return { a: parseInt(parts[0], 10), b: parseInt(parts[1], 10) };
+  }
+
+  var ALL_CARD_KEYS = (function () {
+    var keys = [];
+    for (var a = 1; a <= 10; a++) {
+      for (var b = 1; b <= 10; b++) keys.push(cardKey(a, b));
+    }
+    return keys;
+  })();
+
+  function newCard() {
+    return { box: 0, due: 0, refreshLevel: 0, seen: 0, correct: 0, bestMs: null, lastMs: null };
+  }
+
   return {
     parseGermanNumber: parseGermanNumber,
-    _spellGerman: spellGerman
+    _spellGerman: spellGerman,
+    BOX_MASTERED: BOX_MASTERED,
+    cardKey: cardKey,
+    parseCardKey: parseCardKey,
+    ALL_CARD_KEYS: ALL_CARD_KEYS,
+    newCard: newCard
   };
 });
