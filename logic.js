@@ -106,6 +106,45 @@
     return { box: 0, due: 0, refreshLevel: 0, seen: 0, correct: 0, bestMs: null, lastMs: null };
   }
 
+  var DAY_MS = 86400000;
+  var REFRESH_INTERVALS_MS = [2 * DAY_MS, 7 * DAY_MS, 30 * DAY_MS];
+  var DEFAULT_THRESHOLD_MS = 3000;
+  var STT_THRESHOLD_BONUS_MS = 1000;
+
+  function refreshIntervalFor(level) {
+    var i = Math.min(level, REFRESH_INTERVALS_MS.length - 1);
+    return REFRESH_INTERVALS_MS[i];
+  }
+
+  function gradeAnswer(card, opts) {
+    var next = {
+      box: card.box, due: card.due, refreshLevel: card.refreshLevel,
+      seen: card.seen + 1,
+      correct: card.correct + (opts.correct ? 1 : 0),
+      bestMs: card.bestMs,
+      lastMs: opts.elapsedMs
+    };
+    if (opts.correct && (card.bestMs === null || opts.elapsedMs < card.bestMs)) {
+      next.bestMs = opts.elapsedMs;
+    }
+
+    var hit = opts.correct && opts.elapsedMs <= opts.thresholdMs;
+
+    if (!opts.correct) {
+      next.box = 0;
+      next.refreshLevel = 0;
+      next.due = 0;
+      return next;
+    }
+    if (hit) {
+      next.box = Math.min(card.box + 1, BOX_MASTERED);
+      if (next.box === BOX_MASTERED) {
+        next.due = opts.now + refreshIntervalFor(next.refreshLevel);
+      }
+    }
+    return next;
+  }
+
   return {
     parseGermanNumber: parseGermanNumber,
     _spellGerman: spellGerman,
@@ -113,6 +152,11 @@
     cardKey: cardKey,
     parseCardKey: parseCardKey,
     ALL_CARD_KEYS: ALL_CARD_KEYS,
-    newCard: newCard
+    newCard: newCard,
+    DAY_MS: DAY_MS,
+    REFRESH_INTERVALS_MS: REFRESH_INTERVALS_MS,
+    DEFAULT_THRESHOLD_MS: DEFAULT_THRESHOLD_MS,
+    STT_THRESHOLD_BONUS_MS: STT_THRESHOLD_BONUS_MS,
+    gradeAnswer: gradeAnswer
   };
 });
