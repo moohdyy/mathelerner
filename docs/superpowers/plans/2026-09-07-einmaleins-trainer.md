@@ -19,7 +19,11 @@
 - **Sprache der Oberfläche ist Deutsch**, mit korrekten Umlauten und ß.
 - **Zahlenwerte aus der Spec, wörtlich:** Zeitschwelle-Standard `3000` ms; Bonus bei aktivem Mikrofon `+1000` ms; `3` Treffer bis gemeistert (Box 0→3); Auffrischungsintervalle `2`/`7`/`30` Tage; Box-Gewichte `3`/`2`/`1` für Box 0/1/2; höchstens jede `5.` Aufgabe eine Auffrischung; die letzten `3` Karten werden übersprungen; Kartenpool `1×1` bis `10×10` = `100` Karten, kommutativ getrennt.
 - **Zentrale Fehlerregel:** Ein Spracherkennungsfehler darf niemals eine Karte werten. Nicht verstanden heißt: Karte unverändert, Aufgabe erneut stellen.
-- **Testlauf:** `node --test test/` — muss nach jeder Task grün sein.
+- **Testlauf:** `node --test` (ohne Pfadargument, aus dem Repo-Wurzelverzeichnis) —
+  muss nach jeder Task grün sein. Node 22 versteht ein Verzeichnisargument wie
+  `node --test test/` **nicht** und bricht mit `MODULE_NOT_FOUND` ab; der nackte
+  Aufruf findet `test/*.test.js` von selbst. Einzelne Dateien laufen mit
+  `node --test test/parser.test.js`.
 
 ---
 
@@ -84,7 +88,7 @@ test('erkennt Ziffernform', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL mit `Cannot find module '../logic.js'`
 
 - [ ] **Step 3: `logic.js` mit UMD-Gerüst und Ziffernerkennung anlegen**
@@ -122,7 +126,7 @@ Erstelle `logic.js`:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 1 Test
 
 - [ ] **Step 5: Test für deutsche Zahlwörter schreiben**
@@ -192,7 +196,7 @@ test('liefert null, wenn keine Zahl enthalten ist', () => {
 
 - [ ] **Step 6: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `ML._spellGerman is not a function` und Wortformen liefern `null`
 
 - [ ] **Step 7: Zahlwort-Tabelle und Teilfolgen-Suche implementieren**
@@ -285,7 +289,7 @@ Und erweitere das Rückgabeobjekt am Dateiende:
 
 - [ ] **Step 8: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 7 Tests. Falls der 0–999-Test fehlschlägt, nennt die
 Fehlermeldung die konkrete Zahl und ihre Wortform — dort liegt die Lücke.
 
@@ -345,7 +349,7 @@ test('eine neue Karte startet in Box 0 ohne Statistik', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `ML.cardKey is not a function`
 
 - [ ] **Step 3: Abschnitt 2 in `logic.js` anlegen**
@@ -391,7 +395,7 @@ Erweitere das Rückgabeobjekt:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 10 Tests
 
 - [ ] **Step 5: Commit**
@@ -494,7 +498,7 @@ test('gradeAnswer mutiert die übergebene Karte nicht', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `ML.gradeAnswer is not a function`
 
 - [ ] **Step 3: `gradeAnswer` für die Lernphase implementieren**
@@ -554,7 +558,7 @@ Erweitere das Rückgabeobjekt:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 17 Tests
 
 - [ ] **Step 5: Commit**
@@ -624,7 +628,7 @@ test('verpatzte Auffrischung setzt die Karte komplett zurück', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `refreshLevel` bleibt 0 statt 1, und die langsame Auffrischung
 setzt kein neues `due`
 
@@ -660,7 +664,7 @@ Ersetze in `logic.js` den Rumpf von `gradeAnswer` ab `var hit = ...` durch:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 20 Tests
 
 - [ ] **Step 5: Commit**
@@ -756,7 +760,7 @@ test('RECENT_MEMORY ist 3 und BOX_WEIGHTS sind 3/2/1', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `ML.pickNext is not a function`
 
 - [ ] **Step 3: `pickNext` mit gewichteter Auswahl implementieren**
@@ -809,7 +813,7 @@ Erweitere das Rückgabeobjekt:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 25 Tests
 
 - [ ] **Step 5: Commit**
@@ -895,7 +899,7 @@ test('REFRESH_EVERY ist 5', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — Auffrischungen werden gar nicht gestellt, `ML.REFRESH_EVERY` ist
 undefiniert
 
@@ -947,7 +951,7 @@ Erweitere das Rückgabeobjekt:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 32 Tests
 
 - [ ] **Step 5: Commit**
@@ -1092,7 +1096,7 @@ test('openCount zählt die Karten unterhalb von Box 3', () => {
 
 - [ ] **Step 2: Test laufen lassen und Fehlschlag bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: FAIL — `ML.loadState is not a function`
 
 - [ ] **Step 3: Abschnitt 3 in `logic.js` anlegen**
@@ -1195,7 +1199,7 @@ Erweitere das Rückgabeobjekt:
 
 - [ ] **Step 4: Test laufen lassen und Erfolg bestätigen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests
 
 - [ ] **Step 5: Commit**
@@ -1455,7 +1459,7 @@ Erstelle `index.html`:
 
 - [ ] **Step 2: Sicherstellen, dass die Logiktests weiterhin grün sind**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests (unverändert — `index.html` wird nicht getestet)
 
 - [ ] **Step 3: Manuell im Browser prüfen**
@@ -1662,7 +1666,7 @@ openMenu: openMenu, closeMenu: closeMenu`.
 
 - [ ] **Step 3: Logiktests weiterhin grün**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
@@ -1828,7 +1832,7 @@ Ergänze `renderTtsButton();` direkt vor `nextQuestion();` am Skriptende und
 
 - [ ] **Step 4: Logiktests weiterhin grün**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests
 
 - [ ] **Step 5: Manuell im Browser prüfen**
@@ -2060,7 +2064,7 @@ und in `submitAnswer` im `else`-Zweig (falsche Antwort) direkt nach
 
 - [ ] **Step 5: Logiktests weiterhin grün**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests
 
 - [ ] **Step 6: Manuell im Browser prüfen**
@@ -2161,7 +2165,7 @@ Ergänze am Ende von `renderMenu()` die Zeile `renderStats();`.
 
 - [ ] **Step 3: Logiktests weiterhin grün**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests
 
 - [ ] **Step 4: Manuell im Browser prüfen**
@@ -2246,7 +2250,7 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 ## Tests
 
 ```
-node --test test/
+node --test
 ```
 
 Abgedeckt sind Zahlenparser, Scheduler und Speicherschicht in `logic.js`.
@@ -2261,7 +2265,7 @@ und ein echtes Mikrofon.
 
 - [ ] **Step 2: Vollständigen Testlauf durchführen**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: PASS, 42 Tests, keine Fehlschläge
 
 - [ ] **Step 3: Abschließende Gesamtverifikation im Browser**
