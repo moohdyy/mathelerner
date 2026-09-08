@@ -262,9 +262,16 @@
       stopListening();
       speak(spokenQuestion(ab.a, ab.b), function () {
         wirdVorgelesen = false;
-        if (session.currentKey !== key) return;
+        if (session.currentKey !== key) {
+          // Die Aufgabe hat inzwischen gewechselt: die Uhr der neuen Aufgabe
+          // darf dieser Rücklauf nicht anfassen. Das Zuhören muss er trotzdem
+          // anwerfen — sonst bleibt das Mikrofon still, weil die Sperre
+          // wirdVorgelesen jeden früheren startListening()-Aufruf abgewiesen hat.
+          startListening();
+          return;
+        }
         session.startedAt = Date.now();
-        if (stt.active) startListening();
+        startListening();
       });
     } else {
       wirdVorgelesen = false;
@@ -453,9 +460,14 @@
       stopListening();
       speak(spokenQuestion(ab.a, ab.b), function () {
         wirdVorgelesen = false;
-        if (session.currentKey !== schluessel) return;
+        if (session.currentKey !== schluessel) {
+          // Aufgabe gewechselt: Uhr in Ruhe lassen, Zuhören aber wieder
+          // anwerfen (siehe nextQuestion).
+          startListening();
+          return;
+        }
         session.startedAt = Date.now();
-        if (stt.active) startListening();
+        startListening();
       });
     } else {
       window.speechSynthesis.cancel();
@@ -469,6 +481,29 @@
 
   var STT_MAX_FEHLER_IN_FOLGE = 5;
 
+  // Wachhund der Spracheingabe — dasselbe Motiv wie SPRECH_ZEITGRENZE_MS bei
+  // der Sprachausgabe: der Neustart des Zuhörens hing allein am 'end'-Ereignis
+  // des Erkenners. Bleibt das ein einziges Mal aus — weil start() folgenlos
+  // blieb, weil start() geworfen hat, weil die Engine hängt —, ist das
+  // Mikrofon bis zur nächsten Bedienung endgültig still, obwohl der Knopf
+  // weiter "an" zeigt.
+  //
+  // Bis zum 'start'-Ereignis: mit erteilter Erlaubnis meldet Chrome den Beginn
+  // binnen weniger Millisekunden. 3 s lassen einem langsamen Geräte- oder
+  // Netzstart Luft und sind kurz genug, dass ein Kind den Aussetzer kaum merkt.
+  var STT_START_ZEITGRENZE_MS = 3000;
+  // Beim allerersten Durchgang kann die Erlaubnisabfrage des Browsers offen
+  // stehen. Solange darf der Wachhund nicht dazwischenfunken, sonst schaltet er
+  // das Mikrofon ab, während der Erwachsene noch den Dialog liest.
+  var STT_ERSTSTART_ZEITGRENZE_MS = 30000;
+  // Nach bestätigtem Start bis zum nächsten Lebenszeichen. Chrome meldet von
+  // sich aus nach einigen Sekunden Stille 'no-speech' und danach 'end'; die
+  // Grenze muss deutlich darüber liegen, damit ruhiges Nachdenken nicht als
+  // Aussetzer gilt. Sie ist die letzte Reißleine, nicht der Normalfall.
+  var STT_LEBEN_ZEITGRENZE_MS = 20000;
+  // Bremse gegen einen Neustart-Sturm, wenn start() sofort wirft.
+  var STT_NEUSTART_VERZOEGERUNG_MS = 300;
+
   var stt = {
     supported: !!SR,
     secure: window.isSecureContext === true && window.location.protocol !== 'file:',
@@ -476,8 +511,80 @@
     recognizer: null,
     spokeEndAt: 0,
     permissionDenied: false,
-    fehlerInFolge: 0
+    fehlerInFolge: 0,
+    // Buchführung über den laufenden Zuhör-Durchgang.
+    laufNr: 0,          // laufende Nummer, macht überlappende Durchgänge unterscheidbar
+    gestartet: false,   // hat der aktuelle Durchgang nachweislich begonnen?
+    jeGestartet: false, // hat je einer begonnen? Dann ist die Erlaubnis erteilt.
+    wachhund: null      // Timer-Handle des Wachhunds
   };
+
+  // Reine Diagnose: das Protokoll darf nichts an der Bedienung ändern, nichts
+  // in der Oberfläche anzeigen und keine Zustandslogik beeinflussen. Festes
+  // Präfix, damit sich die Konsole danach filtern lässt; Durchgangsnummer und
+  // Kartenschlüssel, weil sich überlappende Durchgänge sonst nicht auseinander-
+  // halten lassen — und genau die sind der interessante Fall.
+  function sttProtokoll(nr, karte, text) {
+    if (typeof console === 'undefined' || !console.log) return;
+    console.log('[STT] #' + nr + ' ' + (karte === null ? '—' : karte) + ' ' + text);
+  }
+
+  // Die eine Frage, ob gerade überhaupt zugehört werden soll. In allen anderen
+  // Zuständen ist Stille richtig, und der Wachhund hat zu schweigen.
+  function zuhoerenErwartet() {
+    return stt.active && !wirdVorgelesen && el.menu.hidden
+        && !session.awaitingAck && session.currentKey !== null;
+  }
+
+  function wachhundLoeschen() {
+    if (stt.wachhund === null) return;
+    clearTimeout(stt.wachhund);
+    stt.wachhund = null;
+  }
+
+  // Stellt den Wachhund auf den aktuellen Durchgang. Ein abgelöster Durchgang
+  // kann damit weder den Wachhund eines neuen abräumen noch ihn auslösen: die
+  // Nummer wird beim Stellen festgehalten und beim Anschlagen geprüft.
+  function wachhundStellen(frist, grund) {
+    wachhundLoeschen();
+    var nr = stt.laufNr;
+    var karte = session.currentKey;
+    stt.wachhund = setTimeout(function () {
+      stt.wachhund = null;
+      if (nr !== stt.laufNr) {
+        sttProtokoll(nr, karte, 'Wachhund verworfen (abgelöst)');
+        return;
+      }
+      if (!zuhoerenErwartet()) {
+        sttProtokoll(nr, karte, 'Wachhund still (zu Recht kein Zuhören)');
+        return;
+      }
+      // Der Wachhund wertet NIE eine Karte und reicht NIE eine Antwort ein —
+      // er startet ausschließlich das Zuhören neu. Er zahlt dabei in dieselbe
+      // Bremse ein wie die Erkennerfehler, sonst feuerte er offline oder mit
+      // kaputtem Mikrofon endlos.
+      stt.fehlerInFolge++;
+      if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
+        sttProtokoll(nr, karte, 'Wachhund gibt auf nach ' + stt.fehlerInFolge + ' Versuchen');
+        setSttActive(false);
+        el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
+        return;
+      }
+      sttProtokoll(nr, karte, 'Wachhund: ' + grund + ' — Neustart (' + stt.fehlerInFolge + ')');
+      startListening();
+    }, frist);
+  }
+
+  // Jedes Ereignis des aktuellen Durchgangs ist ein Lebenszeichen und setzt die
+  // Frist zurück. Ereignisse eines abgelösten Erkenners bleiben folgenlos.
+  function sttLebenszeichen(rec, frist, grund) {
+    if (rec !== stt.recognizer) return;
+    wachhundStellen(frist, grund);
+  }
+
+  function sttStartFrist() {
+    return stt.jeGestartet ? STT_START_ZEITGRENZE_MS : STT_ERSTSTART_ZEITGRENZE_MS;
+  }
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
 
@@ -511,7 +618,7 @@
   // jeder Handler weiß, zu welcher Aufgabe sein Durchgang gehört — eine
   // gemeinsame Variable wäre längst überschrieben, wenn ein spätes Ergebnis
   // eintrifft.
-  function buildRecognizer(fuerKarte) {
+  function buildRecognizer(fuerKarte, nr) {
     var rec = new SR();
     rec.lang = 'de-DE';
     rec.continuous = false;
@@ -519,15 +626,51 @@
     rec.maxAlternatives = 5;
     requestLocalProcessing(rec);
 
+    // 'start' und 'audiostart' sind der Beleg, dass der Durchgang wirklich
+    // läuft. Ohne diesen Beleg wartete der Code früher auf ein 'end', das nie
+    // kam.
+    function beginnGemeldet(name) {
+      if (rec !== stt.recognizer) {
+        sttProtokoll(nr, fuerKarte, name + ' verworfen (abgelöst)');
+        return;
+      }
+      if (!stt.gestartet) {
+        stt.gestartet = true;
+        stt.jeGestartet = true;
+        sttProtokoll(nr, fuerKarte, 'gestartet (' + name + ')');
+      }
+      wachhundStellen(STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+    }
+
+    rec.addEventListener('start', function () { beginnGemeldet('start'); });
+    rec.addEventListener('audiostart', function () { beginnGemeldet('audiostart'); });
+    // Nur Lebenszeichen, nicht protokolliert — sonst wird die Konsole beim
+    // normalen Üben unbrauchbar.
+    rec.addEventListener('soundstart', function () {
+      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+    });
+    rec.addEventListener('speechstart', function () {
+      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+    });
+
     rec.addEventListener('speechend', function () {
       // Zeitpunkt VOR der Erkennung — die Erkennungslatenz zählt nicht mit.
       stt.spokeEndAt = Date.now();
+      sttProtokoll(nr, fuerKarte, 'speechend');
+      // Auf 'speechend' folgt 'result' oder 'error'; bleibt beides aus, hängt
+      // die Erkennung.
+      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Ergebnis nach speechend');
     });
 
     rec.addEventListener('result', function (event) {
+      sttProtokoll(nr, fuerKarte, 'result');
+      sttLebenszeichen(rec, STT_START_ZEITGRENZE_MS, 'kein end nach result');
       // Ergebnisse eines Durchgangs, der zu einer anderen Aufgabe gehört,
       // dürfen diese Aufgabe nicht werten.
-      if (fuerKarte !== session.currentKey) return;
+      if (fuerKarte !== session.currentKey) {
+        sttProtokoll(nr, fuerKarte, 'result verworfen (andere Aufgabe)');
+        return;
+      }
       stt.fehlerInFolge = 0;
       var alts = event.results[0];
       var kandidaten = [];
@@ -557,11 +700,18 @@
     });
 
     rec.addEventListener('error', function (event) {
+      sttProtokoll(nr, fuerKarte, 'error: ' + event.error);
+      // Auf einen Fehler folgt normalerweise 'end'. Bleibt es aus, muss der
+      // Wachhund übernehmen.
+      sttLebenszeichen(rec, STT_START_ZEITGRENZE_MS, 'kein end nach Fehler');
       // Ein gewöhnlicher Fehler eines veralteten Durchgangs geht diese Aufgabe
       // nichts an. Eine verweigerte Erlaubnis schon: die gilt dem Mikrofon,
       // nicht einer einzelnen Aufgabe.
       if (fuerKarte !== session.currentKey && event.error !== 'not-allowed'
-          && event.error !== 'service-not-allowed') return;
+          && event.error !== 'service-not-allowed') {
+        sttProtokoll(nr, fuerKarte, 'error verworfen (andere Aufgabe)');
+        return;
+      }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         stt.permissionDenied = true;
         setSttActive(false);
@@ -584,10 +734,19 @@
       // Nur der aktuelle Durchgang darf sich selbst neu starten. Ein abgelöster
       // Erkenner meldet sein Ende erst, nachdem startListening() den neuen
       // gesetzt hat — würde er hier neu starten, bräche er den frischen
-      // Durchgang sofort wieder ab, und das endlos.
-      if (rec !== stt.recognizer) return;
+      // Durchgang sofort wieder ab, und das endlos. Er darf auch den Wachhund
+      // des neuen Durchgangs nicht abräumen.
+      if (rec !== stt.recognizer) {
+        sttProtokoll(nr, fuerKarte, 'end verworfen (abgelöst)');
+        return;
+      }
+      sttProtokoll(nr, fuerKarte, 'end');
+      // Dieser Durchgang ist beendet; der nächste stellt seinen eigenen Wachhund.
+      wachhundLoeschen();
+      stt.gestartet = false;
       // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
-      if (stt.active && !session.awaitingAck && session.currentKey !== null) startListening();
+      // startListening() prüft selbst, ob Zuhören gerade richtig wäre.
+      startListening();
     });
 
     return rec;
@@ -602,19 +761,36 @@
   }
 
   function startListening() {
-    if (!stt.active) return;
-    if (wirdVorgelesen) return;
-    // Hinter dem offenen Menü wird nicht zugehört. Ohne diese Sperre startet
-    // der 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
-    if (!el.menu.hidden) return;
-    if (session.currentKey === null) return;
+    // Hinter dem offenen Menü, während des Vorlesens und während der
+    // Fehleranzeige wird nicht zugehört. Ohne diese Sperre startet der
+    // 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
+    if (!zuhoerenErwartet()) return;
     stopListening();                       // einen noch laufenden Durchgang beenden
     stt.spokeEndAt = 0;
-    stt.recognizer = buildRecognizer(session.currentKey);
-    try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
+    stt.laufNr++;
+    stt.gestartet = false;
+    var nr = stt.laufNr;
+    var karte = session.currentKey;
+    stt.recognizer = buildRecognizer(karte, nr);
+    sttProtokoll(nr, karte, 'Start angefordert');
+    try {
+      stt.recognizer.start();
+    } catch (e) {
+      // Früher wurde ein Startfehler kommentarlos geschluckt — danach stand ein
+      // Erkenner bereit, der nie ein Ereignis lieferte, und das Mikrofon war
+      // endgültig still. Jetzt übernimmt der Wachhund; die kurze Verzögerung
+      // verhindert eine Rekursion im selben Tick.
+      sttProtokoll(nr, karte, 'start() warf: ' + (e && e.name ? e.name : e));
+      wachhundStellen(STT_NEUSTART_VERZOEGERUNG_MS, 'start() warf');
+      return;
+    }
+    wachhundStellen(sttStartFrist(), 'kein Start-Ereignis');
   }
 
   function stopListening() {
+    // Hier wird bewusst nicht zugehört — also hat auch der Wachhund zu ruhen.
+    wachhundLoeschen();
+    stt.gestartet = false;
     if (!stt.recognizer) return;
     try { stt.recognizer.abort(); } catch (e) { /* nicht gestartet */ }
   }
@@ -801,7 +977,9 @@
                    submitAnswer: submitAnswer, render: render,
                    profile: profile, persist: persist,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
-                   renderTtsButton: renderTtsButton, speak: speak };
+                   renderTtsButton: renderTtsButton, speak: speak,
+                   stt: stt, setSttActive: setSttActive,
+                   startListening: startListening, stopListening: stopListening };
 })();
 </script>
 </body>
