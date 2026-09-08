@@ -40,7 +40,7 @@ Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 oder `Math.random()` an.** Zeit, Zufall und Storage werden als Parameter
 hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Genau das macht Scheduler und Speicherschicht ohne
-Browser testbar, und genau daran hängen die 60 Tests.
+Browser testbar, und genau daran hängen die 63 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
