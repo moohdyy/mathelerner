@@ -347,7 +347,7 @@
       session.startedAt = 0;
       wirdVorgelesen = true;
       stopListening();
-      speak(spokenQuestion(ab.a, ab.b), function () {
+      speak(ML.spokenQuestion(ab.a, ab.b), function () {
         wirdVorgelesen = false;
         if (session.currentKey !== key) {
           // Die Aufgabe hat inzwischen gewechselt: die Uhr der neuen Aufgabe
@@ -503,8 +503,6 @@
     }
   }
 
-  function spokenQuestion(a, b) { return a + ' mal ' + b; }
-
   var ttsButton = document.createElement('button');
   ttsButton.id = 'tts-toggle';
   ttsButton.type = 'button';
@@ -546,7 +544,7 @@
       session.startedAt = 0;
       wirdVorgelesen = true;
       stopListening();
-      speak(spokenQuestion(ab.a, ab.b), function () {
+      speak(ML.spokenQuestion(ab.a, ab.b), function () {
         wirdVorgelesen = false;
         if (session.currentKey !== schluessel) {
           // Aufgabe gewechselt: Uhr in Ruhe lassen, Zuhören aber wieder
