@@ -1275,8 +1275,16 @@ Erstelle `index.html`:
     font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
     transition: color .12s ease; text-align: center;
   }
+  #trainer {
+    display: flex; flex-direction: column; align-items: center; gap: 3vh;
+  }
   #answer {
-    font: 300 clamp(2rem, 10vw, 4.5rem)/1 inherit;
+    /* Keine font-Kurzform: "inherit" ist darin als Familie ungültig und der
+       Browser verwirft dann die gesamte Deklaration. */
+    font-family: inherit;
+    font-size: clamp(2rem, 10vw, 4.5rem);
+    font-weight: 300;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     width: 4.5ch; text-align: center; padding: .1em .1em .15em;
     background: transparent; color: inherit;
@@ -1379,14 +1387,19 @@ Erstelle `index.html`:
       render();
       return;
     }
+    var ausFreiemUeben = false;
     if (key === null) {
       // Freies Weiterüben: gleichgewichtet aus allen Karten ziehen.
       var all = Object.keys(profile().cards);
       key = all[Math.floor(Math.random() * all.length)];
+      ausFreiemUeben = true;
     }
 
-    var wasRefresh = profile().cards[key].box === ML.BOX_MASTERED;
-    if (wasRefresh) session.refreshesShown++;
+    // Nur echte, von pickNext eingeplante Auffrischungen zählen gegen die Quote.
+    // Eine im freien Üben zufällig gezogene gemeisterte Karte ist keine.
+    if (!ausFreiemUeben && profile().cards[key].box === ML.BOX_MASTERED) {
+      session.refreshesShown++;
+    }
 
     var ab = ML.parseCardKey(key);
     session.currentKey = key;
@@ -1437,7 +1450,8 @@ Erstelle `index.html`:
     e.preventDefault();
     if (session.awaitingAck) { nextQuestion(); return; }
     var raw = el.answer.value.trim();
-    if (raw === '') return;
+    // parseInt würde "4x" als 4 durchgehen lassen; das Feld ist type="text".
+    if (!/^\d+$/.test(raw)) return;
     submitAnswer(parseInt(raw, 10));
   });
 
