@@ -298,6 +298,11 @@
     window.speechSynthesis.addEventListener('voiceschanged', pickGermanVoice);
   }
 
+  // Manche Engines halten die Sprachausgabe an, ohne je onend oder onerror zu
+  // melden — etwa wenn der Tab in den Hintergrund gerät. Ohne diesen Wachhund
+  // bliebe die Uhr dann auf 0 stehen und jede Antwort zählte als Treffer.
+  var SPRECH_ZEITGRENZE_MS = 5000;
+
   function speak(text, onEnd) {
     if (!tts.supported) { if (onEnd) onEnd(); return; }
     window.speechSynthesis.cancel();
@@ -306,10 +311,22 @@
     if (tts.voice) u.voice = tts.voice;
     u.rate = 0.95;
     var done = false;
-    function finish() { if (done) return; done = true; if (onEnd) onEnd(); }
+    var wachhund = null;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (wachhund !== null) clearTimeout(wachhund);
+      if (onEnd) onEnd();
+    }
     u.onend = finish;
     u.onerror = finish;   // sonst bliebe die Uhr bei einem Engine-Fehler stehen
-    window.speechSynthesis.speak(u);
+    wachhund = setTimeout(finish, SPRECH_ZEITGRENZE_MS);
+    try {
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      // Manche Engines werfen synchron; die Uhr darf davon nicht stehenbleiben.
+      finish();
+    }
   }
 
   function spokenQuestion(a, b) { return a + ' mal ' + b; }
@@ -326,22 +343,36 @@
   el.toolbar.appendChild(ttsButton);
 
   function renderTtsButton() {
-    ttsButton.setAttribute('aria-pressed', profile().settings.tts ? 'true' : 'false');
+    // Der Knopf zeigt nur "an", wenn auch wirklich gesprochen wird. Nach einem
+    // Neuladen ist die Einstellung zwar noch gespeichert, der Browser verlangt
+    // aber erst eine Nutzergeste — bis dahin steht der Knopf ehrlich auf "aus".
+    var sprichtWirklich = profile().settings.tts && tts.unlocked;
+    ttsButton.setAttribute('aria-pressed', sprichtWirklich ? 'true' : 'false');
   }
 
   ttsButton.addEventListener('click', function () {
     if (!tts.supported) return;
     var p = profile();
-    p.settings.tts = !p.settings.tts;
+    if (p.settings.tts && !tts.unlocked) {
+      // Die Einstellung war gespeichert, es fehlte nur die Geste, die der
+      // Browser verlangt. Dieser Klick ist sie — also freischalten statt
+      // ausschalten.
+      tts.unlocked = true;
+    } else {
+      p.settings.tts = !p.settings.tts;
+      if (p.settings.tts) tts.unlocked = true;
+    }
     persist();
     renderTtsButton();
     if (session.currentKey === null) return;   // Abschlussbildschirm: nichts vorzulesen
     if (p.settings.tts) {
       // Dieser Klick ist die Nutzergeste, die iOS/Safari verlangt.
-      tts.unlocked = true;
-      var ab = ML.parseCardKey(session.currentKey);
+      var schluessel = session.currentKey;
+      var ab = ML.parseCardKey(schluessel);
       session.startedAt = 0;
-      speak(spokenQuestion(ab.a, ab.b), function () { session.startedAt = Date.now(); });
+      speak(spokenQuestion(ab.a, ab.b), function () {
+        if (session.currentKey === schluessel) session.startedAt = Date.now();
+      });
     } else {
       window.speechSynthesis.cancel();
       session.startedAt = Date.now();
@@ -385,6 +416,7 @@
     session.freeplay = false;
     el.done.hidden = true;
     el.trainer.hidden = false;
+    renderTtsButton();
     nextQuestion();
   }
 
