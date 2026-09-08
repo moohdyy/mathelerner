@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 63 Tests)
+node --test                          # gesamte Suite (aktuell 79 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -40,7 +40,7 @@ Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 oder `Math.random()` an.** Zeit, Zufall und Storage werden als Parameter
 hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Genau das macht Scheduler und Speicherschicht ohne
-Browser testbar, und genau daran hängen die 63 Tests.
+Browser testbar, und genau daran hängen die 79 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -100,6 +100,20 @@ sind mehrfach falsch umgesetzt worden:
   `mikAktualisieren(true)` räumt die Sperre ab; das tun ausschließlich
   bewusste Handlungen (Mikrofon aus, Menü auf) und die Ereignisse des
   **aktuellen** Durchgangs.
+- **Das Menü ist ein Flex-Container und staucht hohe Kinder.** `#menu` ist
+  `display: flex; flex-direction: column`. Sobald der Inhalt länger wird als
+  der Bildschirm, schrumpft Flexbox die Kinder — das Aufgabenraster stand mit
+  120 px statt 345 px da und war abgeschnitten. Deshalb `#menu > * { flex:
+  none; }`. Wer dort etwas Hohes einbaut, prüft `scrollHeight` gegen
+  `clientHeight`; im Bildschirmfoto sieht der Fehler wie eine harmlose Lücke aus.
+- **`aspect-ratio` greift in einer Tabellenzelle mit `table-layout: fixed`
+  nicht.** Die Breite ist beim Berechnen der Höhe noch unbestimmt, und Chrome
+  fällt auf die Inhaltshöhe zurück (gemessen: 27,8 × 24 px). Quadratische
+  Zellen entstehen dort über `height: 0; padding-bottom: calc(100% - 2px)` —
+  die 2 px sind der Rahmen, den `box-sizing: border-box` zur Höhe zählt.
+- **Regeln für Elemente im Menü brauchen `#menu` im Selektor.** `#menu button`
+  hat die Spezifität (1,0,1) und schlägt jede reine Klasse — eine
+  `.karte { border-style: dashed }` wäre wirkungslos verpufft.
 - **Beim Prüfen im Browser den Cache abschalten** (`Network.setCacheDisabled`).
   Ein Nachlauf mit alten Messwerten sieht exakt so aus wie ein wirkungsloser
   Fix.

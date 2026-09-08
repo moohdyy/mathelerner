@@ -361,6 +361,82 @@
     return n;
   }
 
+  /* ===================================================================
+     Abschnitt 5 — Fortschrittsanzeige
+     =================================================================== */
+
+  // Die Boxnummer allein sagt niemandem etwas. Für die Anzeige bekommt jede
+  // Box einen Namen; der Index ist die Boxnummer.
+  var BOX_NAMEN = ['neu', 'geübt', 'fast sicher', 'gemeistert'];
+
+  // Wie viele Karten in welcher Box stehen — Index ist die Boxnummer.
+  function boxVerteilung(profile) {
+    var zaehler = [0, 0, 0, 0];
+    for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
+      var card = profile.cards[ALL_CARD_KEYS[i]];
+      if (card) zaehler[begrenzteBox(card.box)]++;
+    }
+    return zaehler;
+  }
+
+  // Kaputte oder künftige Boxwerte dürfen die Anzeige nicht sprengen.
+  function begrenzteBox(box) {
+    var b = Math.round(Number(box));
+    if (!isFinite(b) || b < 0) return 0;
+    return Math.min(b, BOX_MASTERED);
+  }
+
+  // Deutsche Dezimalschreibweise, nie eine negative Zeit.
+  function zeitText(ms) {
+    if (ms === null || ms === undefined || isNaN(ms)) return null;
+    return (Math.max(0, ms) / 1000).toFixed(1).replace('.', ',') + ' s';
+  }
+
+  // Wann die gemeisterte Karte wieder drankommt. Für alle anderen Boxen gibt
+  // es keinen Auffrischungstermin — dort ist das Ergebnis null.
+  function auffrischungText(card, now) {
+    if (begrenzteBox(card.box) !== BOX_MASTERED) return null;
+    if (!card.due || card.due <= 0) return null;
+    if (card.due <= now) return 'Auffrischung fällig';
+    var tage = Math.ceil((card.due - now) / DAY_MS);
+    return 'Auffrischung in ' + tage + (tage === 1 ? ' Tag' : ' Tagen');
+  }
+
+  function trefferText(card) {
+    if (!card.seen) return 'noch nicht drangekommen';
+    return card.correct + ' von ' + card.seen + ' richtig';
+  }
+
+  // Eine Karte, fertig für die Anzeige: Boxnummer, Name, ob eine Auffrischung
+  // ansteht, und ein Satz, der alles Wissenswerte nennt.
+  function kartenAnsicht(card, key, now) {
+    var ab = parseCardKey(key);
+    var box = begrenzteBox(card.box);
+    var auffrischung = auffrischungText(card, now);
+    var teile = [ab.a + ' × ' + ab.b, BOX_NAMEN[box] + ' (Box ' + box + ')'];
+    var zeit = zeitText(card.bestMs);
+    if (zeit !== null) teile.push('beste Zeit ' + zeit);
+    teile.push(trefferText(card));
+    if (auffrischung !== null) teile.push(auffrischung);
+    return {
+      key: key, a: ab.a, b: ab.b,
+      box: box, name: BOX_NAMEN[box],
+      faellig: auffrischung === 'Auffrischung fällig',
+      beschreibung: teile.join(' · ')
+    };
+  }
+
+  // Immer alle 100 Karten in fester Reihenfolge — ein Profil, dem eine Karte
+  // fehlt, würde sonst ein Loch ins Raster reißen.
+  function kartenAnsichten(profile, now) {
+    var liste = [];
+    for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
+      var key = ALL_CARD_KEYS[i];
+      liste.push(kartenAnsicht(profile.cards[key] || newCard(), key, now));
+    }
+    return liste;
+  }
+
   return {
     parseGermanNumber: parseGermanNumber,
     parseGermanNumbers: parseGermanNumbers,
@@ -396,6 +472,13 @@
     saveState: saveState,
     createProfile: createProfile,
     deleteProfile: deleteProfile,
-    openCount: openCount
+    openCount: openCount,
+    BOX_NAMEN: BOX_NAMEN,
+    boxVerteilung: boxVerteilung,
+    zeitText: zeitText,
+    auffrischungText: auffrischungText,
+    trefferText: trefferText,
+    kartenAnsicht: kartenAnsicht,
+    kartenAnsichten: kartenAnsichten
   };
 });
