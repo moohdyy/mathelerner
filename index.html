@@ -54,12 +54,55 @@
     display: flex; flex-direction: column; align-items: center; gap: 3vh;
   }
   #done { text-align: center; max-width: 32ch; }
+  #menu {
+    position: fixed; inset: 0; background: var(--bg);
+    padding: 6vh 5vw; overflow: auto;
+    display: flex; flex-direction: column; gap: 1.4rem; align-items: flex-start;
+  }
+  #menu h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+  #menu label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .3rem; }
+  #menu select, #menu input[type="number"], #menu input[type="text"] {
+    font: inherit; padding: .45rem .6rem; background: transparent; color: inherit;
+    border: 1px solid var(--line); border-radius: .5rem;
+  }
+  #menu button {
+    font: inherit; padding: .45rem .8rem; cursor: pointer;
+    background: transparent; color: inherit;
+    border: 1px solid var(--line); border-radius: .5rem;
+  }
+  .row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 
 <div id="toolbar"></div>
+
+<section id="menu" hidden>
+  <h2>Profil</h2>
+  <div class="row">
+    <div>
+      <label for="profile-select">Aktives Profil</label>
+      <select id="profile-select"></select>
+    </div>
+    <button id="profile-delete">Löschen</button>
+  </div>
+  <div class="row">
+    <div>
+      <label for="profile-name">Neues Profil</label>
+      <input id="profile-name" type="text" autocomplete="off" placeholder="Name">
+    </div>
+    <button id="profile-add">Anlegen</button>
+  </div>
+
+  <h2>Einstellungen</h2>
+  <div>
+    <label for="threshold">Zeitschwelle in Sekunden</label>
+    <input id="threshold" type="number" min="1" max="30" step="0.5">
+  </div>
+
+  <button id="menu-close">Zurück zum Üben</button>
+</section>
 
 <main id="trainer">
   <div id="question" aria-live="polite">&nbsp;</div>
@@ -87,7 +130,15 @@
     progress: document.getElementById('progress'),
     trainer: document.getElementById('trainer'),
     done: document.getElementById('done'),
-    freeplay: document.getElementById('freeplay')
+    freeplay: document.getElementById('freeplay'),
+    menu: document.getElementById('menu'),
+    toolbar: document.getElementById('toolbar'),
+    profileSelect: document.getElementById('profile-select'),
+    profileName: document.getElementById('profile-name'),
+    profileAdd: document.getElementById('profile-add'),
+    profileDelete: document.getElementById('profile-delete'),
+    threshold: document.getElementById('threshold'),
+    menuClose: document.getElementById('menu-close')
   };
 
   var state = ML.loadState(window.localStorage);
@@ -212,13 +263,92 @@
     nextQuestion();
   });
 
+  var menuButton = document.createElement('button');
+  menuButton.id = 'menu-button';
+  menuButton.type = 'button';
+  menuButton.textContent = '☰';
+  menuButton.title = 'Profile und Einstellungen';
+  el.toolbar.appendChild(menuButton);
+
+  function renderMenu() {
+    el.profileSelect.innerHTML = '';
+    Object.keys(state.profiles).forEach(function (id) {
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = state.profiles[id].name;
+      if (id === state.activeProfile) opt.selected = true;
+      el.profileSelect.appendChild(opt);
+    });
+    el.threshold.value = (thresholdMs() / 1000).toString();
+    el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
+  }
+
+  function openMenu() { renderMenu(); el.menu.hidden = false; }
+
+  function closeMenu() {
+    el.menu.hidden = true;
+    el.trainer.hidden = session.currentKey === null;
+    el.done.hidden = session.currentKey !== null;
+    el.answer.focus();
+  }
+
+  function restartSession() {
+    session.recent = [];
+    session.answered = 0;
+    session.refreshesShown = 0;
+    session.freeplay = false;
+    el.done.hidden = true;
+    el.trainer.hidden = false;
+    nextQuestion();
+  }
+
+  menuButton.addEventListener('click', openMenu);
+  el.menuClose.addEventListener('click', closeMenu);
+
+  el.profileSelect.addEventListener('change', function () {
+    state.activeProfile = el.profileSelect.value;
+    persist();
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;   // Menü bleibt offen, Wechsel ist sichtbar
+  });
+
+  el.profileAdd.addEventListener('click', function () {
+    var name = el.profileName.value.trim();
+    if (name === '') return;
+    var created = ML.createProfile(state, name, Date.now());
+    state = created.state;
+    persist();
+    el.profileName.value = '';
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;
+  });
+
+  el.profileDelete.addEventListener('click', function () {
+    if (Object.keys(state.profiles).length <= 1) return;
+    state = ML.deleteProfile(state, el.profileSelect.value);
+    persist();
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;
+  });
+
+  el.threshold.addEventListener('change', function () {
+    var seconds = parseFloat(el.threshold.value);
+    if (isNaN(seconds) || seconds < 1 || seconds > 30) { renderMenu(); return; }
+    profile().settings.thresholdMs = Math.round(seconds * 1000);
+    persist();
+  });
+
   profile().stats.sessions++;
   persist();
   nextQuestion();
 
   window.__app = { session: session, nextQuestion: nextQuestion,
                    submitAnswer: submitAnswer, render: render,
-                   profile: profile, persist: persist };
+                   profile: profile, persist: persist,
+                   renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu };
 })();
 </script>
 </body>
