@@ -211,3 +211,20 @@ Ruling 23: Formulierung "mit Enter oder dem Knopf weiter" statt meiner Vorgabe
     Moment "Weiter" heisst. Der Implementer meldete den Widerspruch statt ihn
     zu uebernehmen; sein Vorschlag stimmt unabhaengig vom Label.
 
+Ruling 24: Wachhund und Konsolen-Protokoll für die Spracheingabe.
+  — Der Neustart des Zuhörens hing ausschließlich am `end`-Ereignis des
+    Erkenners; im ganzen Abschnitt gab es keinen einzigen Timer. Gemessen:
+    bleibt `end` einmal aus (start() folgenlos, start() wirft), ist das
+    Mikrofon endgültig still, während der Knopf weiter "an" zeigt.
+  — Zwei Fristen statt einer: 3 s bis zum `start`-Ereignis (dort ist der
+    Aussetzer schnell erkennbar), 20 s bis zum nächsten Lebenszeichen danach
+    (Chrome meldet Stille von sich aus als `no-speech`, das darf nicht als
+    Aussetzer gelten). Beim allerersten Durchgang 30 s, weil die
+    Erlaubnisabfrage des Browsers offen stehen kann.
+  — Der Wachhund startet ausschließlich das Zuhören neu; er wertet keine
+    Karte und reicht keine Antwort ein. Er zahlt in dieselbe Bremse ein wie
+    die Erkennerfehler (`STT_MAX_FEHLER_IN_FOLGE`) — bei dauerhaft kaputtem
+    Mikrofon nachgemessen: 5 erzeugte Erkenner, dann Abschaltung.
+  — `zuhoerenErwartet()` bündelt die Frage, ob überhaupt zugehört werden
+    soll. Sie ersetzt die verstreuten Wächter in `startListening()`, damit
+    Wachhund und Start nicht auseinanderlaufen können.
