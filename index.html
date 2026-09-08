@@ -175,7 +175,7 @@
     recent: [],
     answered: 0,
     refreshesShown: 0,
-    awaitingAck: false,   // wartet nach einem Fehler auf Enter
+    awaitingAck: false,   // wartet nach einem Fehler auf die Bestätigung
     freeplay: false,
     ausFreiemUeben: false,   // aktuelle Karte stammt aus dem freien Weiterüben
     sitzungGezaehlt: false   // erst die erste Antwort macht daraus eine Sitzung
@@ -312,7 +312,7 @@
       nextQuestion();
     } else {
       flash('bad');
-      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — weiter mit Enter oder OK';
+      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
       el.confirm.textContent = 'Weiter';
       session.awaitingAck = true;
       stopListening();   // während der Fehleranzeige nicht zuhören
