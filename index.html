@@ -222,10 +222,12 @@
         if (session.currentKey === key) session.startedAt = Date.now();
       });
     }
+
+    if (stt.active) startListening();
   }
 
   // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
-  function submitAnswer(value, elapsedMs) {
+  function submitAnswer(value, elapsedMs, overrideThresholdMs) {
     if (session.currentKey === null || session.awaitingAck) return;
     if (value === null || isNaN(value)) return;   // nicht verstanden: nicht werten
 
@@ -237,7 +239,8 @@
 
     p.cards[session.currentKey] = ML.gradeAnswer(p.cards[session.currentKey], {
       correct: correct, elapsedMs: elapsed,
-      thresholdMs: thresholdMs(), now: Date.now()
+      thresholdMs: typeof overrideThresholdMs === 'number' ? overrideThresholdMs : thresholdMs(),
+      now: Date.now()
     });
     p.stats.totalAnswers++;
 
@@ -253,6 +256,7 @@
       flash('bad');
       el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — Enter für weiter';
       session.awaitingAck = true;
+      stopListening();   // während der Fehleranzeige nicht zuhören
       render();
     }
   }
@@ -379,6 +383,137 @@
     }
   });
 
+  /* ---------- Spracheingabe ---------- */
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  var stt = {
+    supported: !!SR,
+    secure: window.isSecureContext === true,
+    active: false,
+    recognizer: null,
+    spokeEndAt: 0,
+    permissionDenied: false
+  };
+
+  function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
+
+  // Chrome 139+ kann on-device erkennen; sonst still auf den Serverweg zurückfallen.
+  function requestLocalProcessing(rec) {
+    if (typeof SR.available !== 'function') return;
+    try {
+      Promise.resolve(SR.available({ langs: ['de-DE'], processLocally: true }))
+        .then(function (status) {
+          if (status === 'available') rec.processLocally = true;
+          else if (status === 'downloadable' && typeof SR.install === 'function') {
+            SR.install({ langs: ['de-DE'], processLocally: true });
+          }
+        })
+        .catch(function () { /* Serverweg bleibt */ });
+    } catch (e) { /* Serverweg bleibt */ }
+  }
+
+  function buildRecognizer() {
+    var rec = new SR();
+    rec.lang = 'de-DE';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 5;
+    requestLocalProcessing(rec);
+
+    rec.addEventListener('speechend', function () {
+      // Zeitpunkt VOR der Erkennung — die Erkennungslatenz zählt nicht mit.
+      stt.spokeEndAt = Date.now();
+    });
+
+    rec.addEventListener('result', function (event) {
+      var alts = event.results[0];
+      var numbers = [];
+      for (var i = 0; i < alts.length; i++) {
+        var n = ML.parseGermanNumber(alts[i].transcript);
+        if (n !== null) numbers.push(n);
+      }
+      if (numbers.length === 0) {
+        retryUnderstood('Nicht verstanden — bitte nochmal');
+        return;
+      }
+      // Ist die richtige Zahl unter den Alternativen, gilt sie.
+      var value = numbers.indexOf(session.expected) !== -1 ? session.expected : numbers[0];
+
+      var elapsed = (stt.spokeEndAt || Date.now()) - session.startedAt;
+      if (session.startedAt === 0) elapsed = 0;
+      submitAnswer(value, elapsed, sttThresholdMs());
+    });
+
+    rec.addEventListener('error', function (event) {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        stt.permissionDenied = true;
+        setSttActive(false);
+        el.feedback.textContent = 'Kein Zugriff auf das Mikrofon — Tastatur geht weiter';
+        return;
+      }
+      // no-speech, audio-capture, network, aborted: nichts werten, neu hören.
+      if (event.error === 'no-speech') retryUnderstood('Nichts gehört — bitte nochmal');
+      else if (event.error !== 'aborted') retryUnderstood('Mikrofon-Problem — bitte nochmal');
+    });
+
+    rec.addEventListener('end', function () {
+      // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
+      if (stt.active && !session.awaitingAck && session.currentKey !== null) startListening();
+    });
+
+    return rec;
+  }
+
+  // Erkennungsfehler werten die Karte NICHT — sie stellen die Aufgabe nur neu.
+  function retryUnderstood(message) {
+    el.feedback.textContent = message;
+  }
+
+  function startListening() {
+    if (!stt.active || !stt.recognizer) return;
+    stt.spokeEndAt = 0;
+    try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
+  }
+
+  function stopListening() {
+    if (!stt.recognizer) return;
+    try { stt.recognizer.abort(); } catch (e) { /* nicht gestartet */ }
+  }
+
+  function setSttActive(on) {
+    stt.active = on;
+    profile().settings.stt = on;
+    persist();
+    renderSttButton();
+    if (on) { if (!stt.recognizer) stt.recognizer = buildRecognizer(); startListening(); }
+    else { stopListening(); }
+  }
+
+  var sttButton = null;
+  if (stt.supported) {
+    sttButton = document.createElement('button');
+    sttButton.id = 'stt-toggle';
+    sttButton.type = 'button';
+    sttButton.textContent = '🎤';
+    sttButton.title = 'Antwort sprechen';
+    if (!stt.secure) {
+      sttButton.disabled = true;
+      sttButton.title = 'Das Mikrofon braucht HTTPS — über GitHub Pages oder localhost öffnen';
+    }
+    el.toolbar.appendChild(sttButton);
+    sttButton.addEventListener('click', function () {
+      if (!stt.secure || stt.permissionDenied) return;
+      setSttActive(!stt.active);
+    });
+  }
+
+  function renderSttButton() {
+    if (!sttButton) return;
+    sttButton.setAttribute('aria-pressed', stt.active ? 'true' : 'false');
+    sttButton.disabled = !stt.secure || stt.permissionDenied;
+  }
+
   var menuButton = document.createElement('button');
   menuButton.id = 'menu-button';
   menuButton.type = 'button';
@@ -462,6 +597,7 @@
   profile().stats.sessions++;
   persist();
   renderTtsButton();
+  renderSttButton();
   nextQuestion();
 
   window.__app = { session: session, nextQuestion: nextQuestion,
