@@ -30,7 +30,10 @@
     transition: color .12s ease; text-align: center;
   }
   #answer {
-    font: 300 clamp(2rem, 10vw, 4.5rem)/1 inherit;
+    font-family: inherit;
+    font-size: clamp(2rem, 10vw, 4.5rem);
+    font-weight: 300;
+    line-height: 1;
     font-variant-numeric: tabular-nums;
     width: 4.5ch; text-align: center; padding: .1em .1em .15em;
     background: transparent; color: inherit;
@@ -47,6 +50,9 @@
   }
   #toolbar button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg); }
   #toolbar button[disabled] { opacity: .35; cursor: not-allowed; }
+  #trainer {
+    display: flex; flex-direction: column; align-items: center; gap: 3vh;
+  }
   #done { text-align: center; max-width: 32ch; }
   [hidden] { display: none !important; }
 </style>
@@ -133,14 +139,18 @@
       render();
       return;
     }
+    var ausFreiemUeben = false;
     if (key === null) {
       // Freies Weiterüben: gleichgewichtet aus allen Karten ziehen.
       var all = Object.keys(profile().cards);
       key = all[Math.floor(Math.random() * all.length)];
+      ausFreiemUeben = true;
     }
 
-    var wasRefresh = profile().cards[key].box === ML.BOX_MASTERED;
-    if (wasRefresh) session.refreshesShown++;
+    // Nur echte, von pickNext eingeplante Auffrischungen zählen gegen die Quote.
+    if (!ausFreiemUeben && profile().cards[key].box === ML.BOX_MASTERED) {
+      session.refreshesShown++;
+    }
 
     var ab = ML.parseCardKey(key);
     session.currentKey = key;
@@ -191,7 +201,7 @@
     e.preventDefault();
     if (session.awaitingAck) { nextQuestion(); return; }
     var raw = el.answer.value.trim();
-    if (raw === '') return;
+    if (!/^\d+$/.test(raw)) return;
     submitAnswer(parseInt(raw, 10));
   });
 
