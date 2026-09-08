@@ -88,3 +88,21 @@ test('die ganze Rechnung laut gesprochen liefert das Ergebnis als letzte Zahl', 
     }
   }
 });
+
+test('gesprochene Aufgabe: führende 1 wird zu „ein"', () => {
+  assert.strictEqual(ML.spokenQuestion(1, 3), 'ein mal 3');
+  assert.strictEqual(ML.spokenQuestion(1, 10), 'ein mal 10');
+});
+
+test('gesprochene Aufgabe: der zweite Faktor bleibt unangetastet', () => {
+  // „drei mal eins" ist richtiges Deutsch — die Ziffer bleibt hinten stehen,
+  // die Engine liest sie von selbst als „eins".
+  assert.strictEqual(ML.spokenQuestion(3, 1), '3 mal 1');
+  assert.strictEqual(ML.spokenQuestion(1, 1), 'ein mal 1');
+});
+
+test('gesprochene Aufgabe: unauffällige Fälle bleiben Ziffern', () => {
+  assert.strictEqual(ML.spokenQuestion(7, 8), '7 mal 8');
+  assert.strictEqual(ML.spokenQuestion(2, 9), '2 mal 9');
+  assert.strictEqual(ML.spokenQuestion(10, 10), '10 mal 10');
+});

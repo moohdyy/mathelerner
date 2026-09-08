@@ -96,6 +96,16 @@
     return alle.length > 0 ? alle[0] : null;
   }
 
+  // Der Text, den die Sprachausgabe vorliest. Die Faktoren bleiben absichtlich
+  // Ziffern — die Betonung überlässt man damit der Engine, das klingt
+  // natürlicher als ausgeschriebene Zahlwörter. Einzige Ausnahme ist die
+  // führende 1: die Engine liest die Ziffer als „eins", im Deutschen heißt es
+  // vor dem „mal" aber „ein mal drei". Der zweite Faktor bleibt unangetastet,
+  // dort ist „drei mal eins" richtig.
+  function spokenQuestion(a, b) {
+    return (a === 1 ? 'ein' : String(a)) + ' mal ' + b;
+  }
+
   /* ===================================================================
      Abschnitt 2 — Karten und Scheduler
      =================================================================== */
@@ -323,6 +333,7 @@
     parseGermanNumber: parseGermanNumber,
     parseGermanNumbers: parseGermanNumbers,
     _spellGerman: spellGerman,
+    spokenQuestion: spokenQuestion,
     BOX_MASTERED: BOX_MASTERED,
     cardKey: cardKey,
     parseCardKey: parseCardKey,
