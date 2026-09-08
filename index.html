@@ -468,19 +468,29 @@
     recognizer: null,
     spokeEndAt: 0,
     permissionDenied: false,
-    fehlerInFolge: 0,
-    hoertZuFuer: null   // Karte, für die gerade zugehört wird
+    fehlerInFolge: 0
   };
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
 
   // Chrome 139+ kann on-device erkennen; sonst still auf den Serverweg zurückfallen.
+  // Die Antwort gilt für die ganze Sitzung, der Erkenner wird aber jetzt pro
+  // Durchgang neu gebaut: einmal fragen, danach synchron anwenden.
+  var lokalVerfuegbar = null;   // null = noch keine Antwort
+  var lokalAbgefragt = false;
+
   function requestLocalProcessing(rec) {
     if (typeof SR.available !== 'function') return;
+    if (lokalVerfuegbar !== null) {
+      if (lokalVerfuegbar) rec.processLocally = true;
+      return;
+    }
+    if (lokalAbgefragt) return;   // Antwort steht noch aus
+    lokalAbgefragt = true;
     try {
       Promise.resolve(SR.available({ langs: ['de-DE'], processLocally: true }))
         .then(function (status) {
-          if (status === 'available') rec.processLocally = true;
+          if (status === 'available') { lokalVerfuegbar = true; rec.processLocally = true; }
           else if (status === 'downloadable' && typeof SR.install === 'function') {
             SR.install({ langs: ['de-DE'], processLocally: true });
           }
@@ -489,7 +499,11 @@
     } catch (e) { /* Serverweg bleibt */ }
   }
 
-  function buildRecognizer() {
+  // Ein Erkenner pro Zuhör-Durchgang. Die Karte steckt in der Closure, damit
+  // jeder Handler weiß, zu welcher Aufgabe sein Durchgang gehört — eine
+  // gemeinsame Variable wäre längst überschrieben, wenn ein spätes Ergebnis
+  // eintrifft.
+  function buildRecognizer(fuerKarte) {
     var rec = new SR();
     rec.lang = 'de-DE';
     rec.continuous = false;
@@ -503,7 +517,9 @@
     });
 
     rec.addEventListener('result', function (event) {
-      if (stt.hoertZuFuer !== session.currentKey) return;   // Ergebnis gehört zu einer alten Aufgabe
+      // Ergebnisse eines Durchgangs, der zu einer anderen Aufgabe gehört,
+      // dürfen diese Aufgabe nicht werten.
+      if (fuerKarte !== session.currentKey) return;
       stt.fehlerInFolge = 0;
       var alts = event.results[0];
       var kandidaten = [];
@@ -533,6 +549,11 @@
     });
 
     rec.addEventListener('error', function (event) {
+      // Ein gewöhnlicher Fehler eines veralteten Durchgangs geht diese Aufgabe
+      // nichts an. Eine verweigerte Erlaubnis schon: die gilt dem Mikrofon,
+      // nicht einer einzelnen Aufgabe.
+      if (fuerKarte !== session.currentKey && event.error !== 'not-allowed'
+          && event.error !== 'service-not-allowed') return;
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         stt.permissionDenied = true;
         setSttActive(false);
@@ -552,6 +573,11 @@
     });
 
     rec.addEventListener('end', function () {
+      // Nur der aktuelle Durchgang darf sich selbst neu starten. Ein abgelöster
+      // Erkenner meldet sein Ende erst, nachdem startListening() den neuen
+      // gesetzt hat — würde er hier neu starten, bräche er den frischen
+      // Durchgang sofort wieder ab, und das endlos.
+      if (rec !== stt.recognizer) return;
       // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
       if (stt.active && !session.awaitingAck && session.currentKey !== null) startListening();
     });
@@ -568,13 +594,15 @@
   }
 
   function startListening() {
-    if (!stt.active || !stt.recognizer) return;
+    if (!stt.active) return;
     if (wirdVorgelesen) return;
     // Hinter dem offenen Menü wird nicht zugehört. Ohne diese Sperre startet
     // der 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
     if (!el.menu.hidden) return;
-    stt.hoertZuFuer = session.currentKey;
+    if (session.currentKey === null) return;
+    stopListening();                       // einen noch laufenden Durchgang beenden
     stt.spokeEndAt = 0;
+    stt.recognizer = buildRecognizer(session.currentKey);
     try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
   }
 
@@ -589,8 +617,9 @@
     // in jeder Sitzung eine neue Erlaubnis-Geste, ein wiederhergestelltes "an"
     // wäre also gelogen. Das Feld bleibt im Schema auf seinem Vorgabewert.
     renderSttButton();
-    if (on) { if (!stt.recognizer) stt.recognizer = buildRecognizer(); startListening(); }
-    else { stopListening(); }
+    // startListening() baut den Erkenner selbst — pro Durchgang einen frischen.
+    if (on) startListening();
+    else stopListening();
   }
 
   var sttButton = null;
