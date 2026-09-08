@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Einmaleins</title>
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1a1a1a; --muted: #8a8a85;
+    --ok: #2e7d32; --bad: #c62828; --line: #e3e3df;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --fg: #f0f0ee; --muted: #85858c;
+            --ok: #6dd47e; --bad: #ff6b6b; --line: #2c2d31; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 400 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3vh; padding: 4vh 5vw;
+    -webkit-text-size-adjust: 100%;
+  }
+  body.ok  #question { color: var(--ok); }
+  body.bad #question { color: var(--bad); }
+  #question {
+    font-size: clamp(3rem, 18vw, 9rem); font-weight: 300;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    transition: color .12s ease; text-align: center;
+  }
+  #answer {
+    font-family: inherit;
+    font-size: clamp(2rem, 10vw, 4.5rem);
+    font-weight: 300;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    width: 4.5ch; text-align: center; padding: .1em .1em .15em;
+    background: transparent; color: inherit;
+    border: none; border-bottom: 3px solid var(--line); border-radius: 0;
+  }
+  #answer:focus { outline: none; border-bottom-color: var(--fg); }
+  #confirm {
+    font: inherit; font-size: 1.1rem;
+    width: min(22rem, 80vw); padding: .8rem 1rem; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); border-radius: .6rem;
+  }
+  #confirm:active { color: var(--fg); border-color: var(--fg); }
+  #feedback { min-height: 1.6em; font-size: 1.1rem; color: var(--muted); text-align: center; }
+  #progress { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #speicherwarnung {
+    font-size: .9rem; color: var(--bad); text-align: center; max-width: 32ch;
+  }
+  #toolbar { position: fixed; top: 1rem; right: 1rem; display: flex; gap: .4rem; }
+  #toolbar button {
+    font-size: 1.1rem; line-height: 1; padding: .45rem .55rem; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); border-radius: .5rem;
+  }
+  #toolbar button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg); }
+  #toolbar button[disabled] { opacity: .35; cursor: not-allowed; }
+  #trainer {
+    display: flex; flex-direction: column; align-items: center; gap: 3vh;
+  }
+  #done { text-align: center; max-width: 32ch; }
+  #menu {
+    position: fixed; inset: 0; background: var(--bg);
+    padding: 6vh 5vw; overflow: auto;
+    display: flex; flex-direction: column; gap: 1.4rem; align-items: flex-start;
+  }
+  #menu h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+  #menu label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .3rem; }
+  #menu select, #menu input[type="number"], #menu input[type="text"] {
+    font: inherit; padding: .45rem .6rem; background: transparent; color: inherit;
+    border: 1px solid var(--line); border-radius: .5rem;
+  }
+  #menu button {
+    font: inherit; padding: .45rem .8rem; cursor: pointer;
+    background: transparent; color: inherit;
+    border: 1px solid var(--line); border-radius: .5rem;
+  }
+  .row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+  #stats { font-size: .9rem; color: var(--muted); line-height: 1.7; }
+  #stats table { border-collapse: collapse; margin-top: .5rem; }
+  #stats td { padding: .1rem .8rem .1rem 0; font-variant-numeric: tabular-nums; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="toolbar"></div>
+
+<section id="menu" hidden>
+  <h2>Profil</h2>
+  <div class="row">
+    <div>
+      <label for="profile-select">Aktives Profil</label>
+      <select id="profile-select"></select>
+    </div>
+    <button id="profile-delete">Löschen</button>
+  </div>
+  <div class="row">
+    <div>
+      <label for="profile-name">Neues Profil</label>
+      <input id="profile-name" type="text" autocomplete="off" placeholder="Name">
+    </div>
+    <button id="profile-add">Anlegen</button>
+  </div>
+
+  <h2>Einstellungen</h2>
+  <div>
+    <label for="threshold">Zeitschwelle in Sekunden</label>
+    <input id="threshold" type="number" min="1" max="30" step="0.5">
+  </div>
+
+  <h2>Fortschritt</h2>
+  <div id="stats"></div>
+
+  <button id="menu-close">Zurück zum Üben</button>
+</section>
+
+<main id="trainer">
+  <div id="question" aria-live="polite">&nbsp;</div>
+  <input id="answer" type="text" inputmode="numeric" autocomplete="off"
+         autocorrect="off" spellcheck="false" aria-label="Antwort">
+  <button id="confirm" type="button">OK</button>
+  <div id="feedback" aria-live="polite"></div>
+</main>
+
+<div id="done" hidden>
+  <p>Alles gemeistert. Nichts steht zur Auffrischung an.</p>
+  <button id="freeplay">Trotzdem weiterüben</button>
+</div>
+
+<div id="progress"></div>
+<div id="speicherwarnung" hidden></div>
+
+<script src="logic.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var el = {
+    question: document.getElementById('question'),
+    answer: document.getElementById('answer'),
+    confirm: document.getElementById('confirm'),
+    feedback: document.getElementById('feedback'),
+    progress: document.getElementById('progress'),
+    speicherwarnung: document.getElementById('speicherwarnung'),
+    trainer: document.getElementById('trainer'),
+    done: document.getElementById('done'),
+    freeplay: document.getElementById('freeplay'),
+    menu: document.getElementById('menu'),
+    toolbar: document.getElementById('toolbar'),
+    profileSelect: document.getElementById('profile-select'),
+    profileName: document.getElementById('profile-name'),
+    profileAdd: document.getElementById('profile-add'),
+    profileDelete: document.getElementById('profile-delete'),
+    threshold: document.getElementById('threshold'),
+    menuClose: document.getElementById('menu-close')
+  };
+
+  var state = ML.loadState(window.localStorage);
+  if (!state.activeProfile) {
+    var created = ML.createProfile(state, 'Ich', Date.now());
+    state = created.state;
+    ML.saveState(window.localStorage, state);
+  }
+
+  var session = {
+    currentKey: null,
+    expected: 0,
+    startedAt: 0,
+    recent: [],
+    answered: 0,
+    refreshesShown: 0,
+    awaitingAck: false,   // wartet nach einem Fehler auf die Bestätigung
+    freeplay: false,
+    ausFreiemUeben: false,   // aktuelle Karte stammt aus dem freien Weiterüben
+    sitzungGezaehlt: false   // erst die erste Antwort macht daraus eine Sitzung
+  };
+
+  // Zwei-Schritt-Bestätigung für das Löschen eines Profils.
+  var loeschBestaetigung = false;
+
+  function profile() { return state.profiles[state.activeProfile]; }
+
+  var speicherWarnungGezeigt = false;
+  function persist() {
+    var ok = ML.saveState(window.localStorage, state);
+    if (!ok && !speicherWarnungGezeigt) {
+      speicherWarnungGezeigt = true;
+      // Eigenes Element: #feedback wird bei jeder Antwort neu geschrieben und
+      // hätte die Warnung noch im selben Tick überschrieben.
+      el.speicherwarnung.textContent =
+        'Achtung: Der Fortschritt kann in diesem Browser nicht gespeichert werden.';
+      el.speicherwarnung.hidden = false;
+    }
+  }
+
+  function thresholdMs() { return profile().settings.thresholdMs; }
+
+  function flash(cls) {
+    document.body.classList.add(cls);
+    setTimeout(function () { document.body.classList.remove(cls); }, 260);
+  }
+
+  function render() {
+    el.progress.textContent = 'noch ' + ML.openCount(profile()) + ' von 100 offen';
+  }
+
+  function nextQuestion() {
+    var key = ML.pickNext(profile().cards, {
+      now: Date.now(),
+      recent: session.recent,
+      answered: session.answered,
+      refreshesShown: session.refreshesShown,
+      rng: Math.random
+    });
+
+    if (key === null && !session.freeplay) {
+      session.currentKey = null;
+      el.trainer.hidden = true;
+      el.done.hidden = false;
+      render();
+      return;
+    }
+    var ausFreiemUeben = false;
+    if (key === null) {
+      // Freies Weiterüben: gleichgewichtet aus allen Karten ziehen.
+      var all = Object.keys(profile().cards);
+      key = all[Math.floor(Math.random() * all.length)];
+      ausFreiemUeben = true;
+    }
+
+    // Nur echte, von pickNext eingeplante Auffrischungen zählen gegen die Quote.
+    if (!ausFreiemUeben && profile().cards[key].box === ML.BOX_MASTERED) {
+      session.refreshesShown++;
+    }
+
+    var ab = ML.parseCardKey(key);
+    session.currentKey = key;
+    session.expected = ab.a * ab.b;
+    session.startedAt = Date.now();
+    session.awaitingAck = false;
+    session.ausFreiemUeben = ausFreiemUeben;
+
+    el.question.textContent = ab.a + ' × ' + ab.b;
+    el.answer.value = '';
+    el.feedback.textContent = '';
+    el.confirm.textContent = 'OK';
+    // Nicht ins unsichtbare Feld hinter dem offenen Menü fokussieren —
+    // das holte auf dem Handy die Zifferntastatur über das Menü.
+    if (el.menu.hidden) el.answer.focus();
+    render();
+
+    if (profile().settings.tts && tts.unlocked) {
+      // Uhr und Mikrofon starten erst, wenn die Aufgabe fertig vorgelesen ist.
+      session.startedAt = 0;
+      wirdVorgelesen = true;
+      stopListening();
+      speak(spokenQuestion(ab.a, ab.b), function () {
+        wirdVorgelesen = false;
+        if (session.currentKey !== key) return;
+        session.startedAt = Date.now();
+        if (stt.active) startListening();
+      });
+    } else {
+      wirdVorgelesen = false;
+      if (stt.active) startListening();
+    }
+  }
+
+  // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
+  function submitAnswer(value, elapsedMs, overrideThresholdMs) {
+    if (session.currentKey === null || session.awaitingAck) return;
+    if (value === null || isNaN(value)) return;   // nicht verstanden: nicht werten
+
+    var elapsed = typeof elapsedMs === 'number'
+      ? elapsedMs
+      : (session.startedAt === 0 ? 0 : Date.now() - session.startedAt);
+    var correct = value === session.expected;
+    var p = profile();
+
+    if (!session.sitzungGezaehlt) {
+      // Eine Sitzung ist laut Spec ein Seitenaufruf MIT mindestens einer Antwort.
+      p.stats.sessions++;
+      session.sitzungGezaehlt = true;
+    }
+
+    if (session.ausFreiemUeben) {
+      // Freies Weiterüben läuft laut Spec ohne Boxwirkung: die Karte wird
+      // nicht bewertet, es gibt nur die Rückmeldung.
+      p.stats.totalAnswers++;
+    } else {
+      p.cards[session.currentKey] = ML.gradeAnswer(p.cards[session.currentKey], {
+        correct: correct, elapsedMs: elapsed,
+        thresholdMs: typeof overrideThresholdMs === 'number' ? overrideThresholdMs : thresholdMs(),
+        now: Date.now()
+      });
+      p.stats.totalAnswers++;
+    }
+
+    session.recent.push(session.currentKey);
+    if (session.recent.length > ML.RECENT_MEMORY) session.recent.shift();
+    session.answered++;
+    persist();
+
+    if (correct) {
+      flash('ok');
+      nextQuestion();
+    } else {
+      flash('bad');
+      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
+      el.confirm.textContent = 'Weiter';
+      session.awaitingAck = true;
+      stopListening();   // während der Fehleranzeige nicht zuhören
+      render();
+    }
+  }
+
+  // Enter und die breite Touch-Fläche tun genau dasselbe — eine Funktion für
+  // beide, damit sie nicht auseinanderlaufen können.
+  function bestaetigen() {
+    if (session.awaitingAck) { nextQuestion(); return; }
+    var raw = el.answer.value.trim();
+    if (!/^\d+$/.test(raw)) return;
+    submitAnswer(parseInt(raw, 10));
+  }
+
+  el.answer.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    bestaetigen();
+  });
+
+  el.confirm.addEventListener('click', function () {
+    bestaetigen();
+    // Auf dem Tablet bleibt die Tastatur so am Feld statt am Knopf.
+    if (el.menu.hidden) el.answer.focus();
+  });
+
+  el.freeplay.addEventListener('click', function () {
+    session.freeplay = true;
+    el.done.hidden = true;
+    el.trainer.hidden = false;
+    nextQuestion();
+  });
+
+  /* ---------- Sprachausgabe ---------- */
+
+  var tts = {
+    supported: typeof window.speechSynthesis !== 'undefined',
+    voice: null,
+    unlocked: false
+  };
+
+  // Solange die Aufgabe vorgelesen wird, darf das Mikrofon nicht zuhören —
+  // sonst erkennt es die eigene Sprachausgabe als Antwort.
+  var wirdVorgelesen = false;
+
+  function pickGermanVoice() {
+    if (!tts.supported) return;
+    var voices = window.speechSynthesis.getVoices();
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.toLowerCase().indexOf('de') === 0) {
+        tts.voice = voices[i];
+        return;
+      }
+    }
+  }
+
+  if (tts.supported) {
+    pickGermanVoice();
+    // Die Stimmenliste ist beim ersten Aufruf oft noch leer.
+    window.speechSynthesis.addEventListener('voiceschanged', pickGermanVoice);
+  }
+
+  // Manche Engines halten die Sprachausgabe an, ohne je onend oder onerror zu
+  // melden — etwa wenn der Tab in den Hintergrund gerät. Ohne diesen Wachhund
+  // bliebe die Uhr dann auf 0 stehen und jede Antwort zählte als Treffer.
+  var SPRECH_ZEITGRENZE_MS = 5000;
+
+  function speak(text, onEnd) {
+    if (!tts.supported) { if (onEnd) onEnd(); return; }
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'de-DE';
+    if (tts.voice) u.voice = tts.voice;
+    u.rate = 0.95;
+    var done = false;
+    var wachhund = null;
+    function finish() {
+      if (done) return;
+      done = true;
+      if (wachhund !== null) clearTimeout(wachhund);
+      if (onEnd) onEnd();
+    }
+    u.onend = finish;
+    u.onerror = finish;   // sonst bliebe die Uhr bei einem Engine-Fehler stehen
+    wachhund = setTimeout(finish, SPRECH_ZEITGRENZE_MS);
+    try {
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      // Manche Engines werfen synchron; die Uhr darf davon nicht stehenbleiben.
+      finish();
+    }
+  }
+
+  function spokenQuestion(a, b) { return a + ' mal ' + b; }
+
+  var ttsButton = document.createElement('button');
+  ttsButton.id = 'tts-toggle';
+  ttsButton.type = 'button';
+  ttsButton.textContent = '🔊';
+  ttsButton.title = 'Aufgabe vorlesen';
+  if (!tts.supported) {
+    ttsButton.disabled = true;
+    ttsButton.title = 'Dieser Browser kann nicht vorlesen';
+  }
+  el.toolbar.appendChild(ttsButton);
+
+  function renderTtsButton() {
+    // Der Knopf zeigt nur "an", wenn auch wirklich gesprochen wird. Nach einem
+    // Neuladen ist die Einstellung zwar noch gespeichert, der Browser verlangt
+    // aber erst eine Nutzergeste — bis dahin steht der Knopf ehrlich auf "aus".
+    var sprichtWirklich = profile().settings.tts && tts.unlocked;
+    ttsButton.setAttribute('aria-pressed', sprichtWirklich ? 'true' : 'false');
+  }
+
+  ttsButton.addEventListener('click', function () {
+    if (!tts.supported) return;
+    var p = profile();
+    if (p.settings.tts && !tts.unlocked) {
+      // Die Einstellung war gespeichert, es fehlte nur die Geste, die der
+      // Browser verlangt. Dieser Klick ist sie — also freischalten statt
+      // ausschalten.
+      tts.unlocked = true;
+    } else {
+      p.settings.tts = !p.settings.tts;
+      if (p.settings.tts) tts.unlocked = true;
+    }
+    persist();
+    renderTtsButton();
+    if (session.currentKey === null) return;   // Abschlussbildschirm: nichts vorzulesen
+    if (p.settings.tts) {
+      // Dieser Klick ist die Nutzergeste, die iOS/Safari verlangt.
+      var schluessel = session.currentKey;
+      var ab = ML.parseCardKey(schluessel);
+      session.startedAt = 0;
+      wirdVorgelesen = true;
+      stopListening();
+      speak(spokenQuestion(ab.a, ab.b), function () {
+        wirdVorgelesen = false;
+        if (session.currentKey !== schluessel) return;
+        session.startedAt = Date.now();
+        if (stt.active) startListening();
+      });
+    } else {
+      window.speechSynthesis.cancel();
+      session.startedAt = Date.now();
+    }
+  });
+
+  /* ---------- Spracheingabe ---------- */
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  var STT_MAX_FEHLER_IN_FOLGE = 5;
+
+  var stt = {
+    supported: !!SR,
+    secure: window.isSecureContext === true && window.location.protocol !== 'file:',
+    active: false,
+    recognizer: null,
+    spokeEndAt: 0,
+    permissionDenied: false,
+    fehlerInFolge: 0
+  };
+
+  function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
+
+  // Chrome 139+ kann on-device erkennen; sonst still auf den Serverweg zurückfallen.
+  // Die Antwort gilt für die ganze Sitzung, der Erkenner wird aber jetzt pro
+  // Durchgang neu gebaut: einmal fragen, danach synchron anwenden.
+  var lokalVerfuegbar = null;   // null = noch keine Antwort
+  var lokalAbgefragt = false;
+
+  function requestLocalProcessing(rec) {
+    if (typeof SR.available !== 'function') return;
+    if (lokalVerfuegbar !== null) {
+      if (lokalVerfuegbar) rec.processLocally = true;
+      return;
+    }
+    if (lokalAbgefragt) return;   // Antwort steht noch aus
+    lokalAbgefragt = true;
+    try {
+      Promise.resolve(SR.available({ langs: ['de-DE'], processLocally: true }))
+        .then(function (status) {
+          if (status === 'available') { lokalVerfuegbar = true; rec.processLocally = true; }
+          else if (status === 'downloadable' && typeof SR.install === 'function') {
+            SR.install({ langs: ['de-DE'], processLocally: true });
+          }
+        })
+        .catch(function () { /* Serverweg bleibt */ });
+    } catch (e) { /* Serverweg bleibt */ }
+  }
+
+  // Ein Erkenner pro Zuhör-Durchgang. Die Karte steckt in der Closure, damit
+  // jeder Handler weiß, zu welcher Aufgabe sein Durchgang gehört — eine
+  // gemeinsame Variable wäre längst überschrieben, wenn ein spätes Ergebnis
+  // eintrifft.
+  function buildRecognizer(fuerKarte) {
+    var rec = new SR();
+    rec.lang = 'de-DE';
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 5;
+    requestLocalProcessing(rec);
+
+    rec.addEventListener('speechend', function () {
+      // Zeitpunkt VOR der Erkennung — die Erkennungslatenz zählt nicht mit.
+      stt.spokeEndAt = Date.now();
+    });
+
+    rec.addEventListener('result', function (event) {
+      // Ergebnisse eines Durchgangs, der zu einer anderen Aufgabe gehört,
+      // dürfen diese Aufgabe nicht werten.
+      if (fuerKarte !== session.currentKey) return;
+      stt.fehlerInFolge = 0;
+      var alts = event.results[0];
+      var kandidaten = [];
+      for (var i = 0; i < alts.length; i++) {
+        var zahlen = ML.parseGermanNumbers(alts[i].transcript);
+        if (zahlen.length > 0) kandidaten.push(zahlen);
+      }
+      if (kandidaten.length === 0) {
+        retryUnderstood('Nicht verstanden — bitte nochmal');
+        return;
+      }
+      // Steht die richtige Zahl irgendwo in irgendeiner Alternative, gilt sie.
+      var wert = null;
+      for (var j = 0; j < kandidaten.length && wert === null; j++) {
+        if (kandidaten[j].indexOf(session.expected) !== -1) wert = session.expected;
+      }
+      if (wert === null) {
+        // Sonst zählt die LETZTE Zahl der ersten Alternative: wer die ganze
+        // Rechnung aufsagt, meint mit der letzten Zahl sein Ergebnis.
+        var erste = kandidaten[0];
+        wert = erste[erste.length - 1];
+      }
+
+      var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
+      if (session.startedAt === 0) elapsed = 0;
+      submitAnswer(wert, elapsed, sttThresholdMs());
+    });
+
+    rec.addEventListener('error', function (event) {
+      // Ein gewöhnlicher Fehler eines veralteten Durchgangs geht diese Aufgabe
+      // nichts an. Eine verweigerte Erlaubnis schon: die gilt dem Mikrofon,
+      // nicht einer einzelnen Aufgabe.
+      if (fuerKarte !== session.currentKey && event.error !== 'not-allowed'
+          && event.error !== 'service-not-allowed') return;
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        stt.permissionDenied = true;
+        setSttActive(false);
+        el.feedback.textContent = 'Kein Zugriff auf das Mikrofon — Tastatur geht weiter';
+        return;
+      }
+      // no-speech, audio-capture, network, aborted: nichts werten, neu hören.
+      if (event.error === 'aborted') return;   // eigener stopListening()-Aufruf, kein Fehler
+      stt.fehlerInFolge++;
+      if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
+        setSttActive(false);
+        el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
+        return;
+      }
+      if (event.error === 'no-speech') retryUnderstood('Nichts gehört — bitte nochmal');
+      else retryUnderstood('Mikrofon-Problem — bitte nochmal');
+    });
+
+    rec.addEventListener('end', function () {
+      // Nur der aktuelle Durchgang darf sich selbst neu starten. Ein abgelöster
+      // Erkenner meldet sein Ende erst, nachdem startListening() den neuen
+      // gesetzt hat — würde er hier neu starten, bräche er den frischen
+      // Durchgang sofort wieder ab, und das endlos.
+      if (rec !== stt.recognizer) return;
+      // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
+      if (stt.active && !session.awaitingAck && session.currentKey !== null) startListening();
+    });
+
+    return rec;
+  }
+
+  // Erkennungsfehler werten die Karte NICHT — sie stellen die Aufgabe nur neu.
+  function retryUnderstood(message) {
+    el.feedback.textContent = message;
+    // Die Uhr beginnt von vorn: sonst liefe der zweite Versuch gegen die Zeit
+    // des ersten und könnte nie schnell genug sein.
+    session.startedAt = Date.now();
+  }
+
+  function startListening() {
+    if (!stt.active) return;
+    if (wirdVorgelesen) return;
+    // Hinter dem offenen Menü wird nicht zugehört. Ohne diese Sperre startet
+    // der 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
+    if (!el.menu.hidden) return;
+    if (session.currentKey === null) return;
+    stopListening();                       // einen noch laufenden Durchgang beenden
+    stt.spokeEndAt = 0;
+    stt.recognizer = buildRecognizer(session.currentKey);
+    try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
+  }
+
+  function stopListening() {
+    if (!stt.recognizer) return;
+    try { stt.recognizer.abort(); } catch (e) { /* nicht gestartet */ }
+  }
+
+  function setSttActive(on) {
+    stt.active = on;
+    // Der Mikrofonzustand wird bewusst NICHT gespeichert: der Browser verlangt
+    // in jeder Sitzung eine neue Erlaubnis-Geste, ein wiederhergestelltes "an"
+    // wäre also gelogen. Das Feld bleibt im Schema auf seinem Vorgabewert.
+    renderSttButton();
+    // startListening() baut den Erkenner selbst — pro Durchgang einen frischen.
+    if (on) startListening();
+    else stopListening();
+  }
+
+  var sttButton = null;
+  if (stt.supported) {
+    sttButton = document.createElement('button');
+    sttButton.id = 'stt-toggle';
+    sttButton.type = 'button';
+    sttButton.textContent = '🎤';
+    sttButton.title = 'Antwort sprechen';
+    if (!stt.secure) {
+      sttButton.disabled = true;
+      sttButton.title = 'Das Mikrofon braucht HTTPS — über GitHub Pages oder localhost öffnen';
+    }
+    el.toolbar.appendChild(sttButton);
+    sttButton.addEventListener('click', function () {
+      if (!stt.secure || stt.permissionDenied) return;
+      setSttActive(!stt.active);
+    });
+  }
+
+  function renderSttButton() {
+    if (!sttButton) return;
+    sttButton.setAttribute('aria-pressed', stt.active ? 'true' : 'false');
+    sttButton.disabled = !stt.secure || stt.permissionDenied;
+  }
+
+  var menuButton = document.createElement('button');
+  menuButton.id = 'menu-button';
+  menuButton.type = 'button';
+  menuButton.textContent = '☰';
+  menuButton.title = 'Profile und Einstellungen';
+  el.toolbar.appendChild(menuButton);
+
+  function renderStats() {
+    var p = profile();
+    var keys = Object.keys(p.cards);
+    var boxes = [0, 0, 0, 0];
+    var timed = [];
+    keys.forEach(function (k) {
+      var c = p.cards[k];
+      boxes[c.box]++;
+      if (c.bestMs !== null && c.box < ML.BOX_MASTERED) timed.push({ key: k, ms: c.bestMs });
+    });
+    timed.sort(function (a, b) { return b.ms - a.ms; });
+
+    var html = '<div>offen: <strong>' + ML.openCount(p) + '</strong> von 100' +
+               ' &middot; gemeistert: <strong>' + boxes[3] + '</strong></div>' +
+               '<div>Box 0: ' + boxes[0] + ' &middot; Box 1: ' + boxes[1] +
+               ' &middot; Box 2: ' + boxes[2] + '</div>' +
+               '<div>Antworten insgesamt: ' + p.stats.totalAnswers +
+               ' &middot; Sitzungen: ' + p.stats.sessions + '</div>';
+
+    if (timed.length > 0) {
+      html += '<div style="margin-top:.6rem">Langsamste offene Aufgaben</div><table>';
+      timed.slice(0, 5).forEach(function (row) {
+        var ab = ML.parseCardKey(row.key);
+        // Deutsche Dezimalschreibweise, und nie eine negative Zeit anzeigen.
+        var sek = Math.max(0, row.ms) / 1000;
+        var anzeige = sek.toFixed(1).replace('.', ',');
+        html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
+                anzeige + ' s</td></tr>';
+      });
+      html += '</table>';
+    }
+    document.getElementById('stats').innerHTML = html;
+  }
+
+  function renderMenu() {
+    el.profileSelect.innerHTML = '';
+    Object.keys(state.profiles).forEach(function (id) {
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = state.profiles[id].name;
+      if (id === state.activeProfile) opt.selected = true;
+      el.profileSelect.appendChild(opt);
+    });
+    el.threshold.value = (thresholdMs() / 1000).toString();
+    el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
+    // Ein scharfgeschaltetes Löschen darf keinen Kontextwechsel überleben.
+    loeschBestaetigung = false;
+    el.profileDelete.textContent = 'Löschen';
+    renderStats();
+  }
+
+  function openMenu() {
+    // Hinter dem Menü darf weder die Uhr noch das Mikrofon weiterlaufen.
+    stopListening();
+    renderMenu();
+    el.menu.hidden = false;
+  }
+
+  function closeMenu() {
+    el.menu.hidden = true;
+    el.trainer.hidden = session.currentKey === null;
+    el.done.hidden = session.currentKey !== null;
+    // Die wartende Aufgabe wird ab der Rückkehr gemessen, nicht ab vorher.
+    if (session.currentKey !== null) session.startedAt = Date.now();
+    el.answer.focus();
+    if (stt.active) startListening();   // Mikrofon war während des Menüs gesperrt
+  }
+
+  function restartSession() {
+    stopListening();
+    stt.spokeEndAt = 0;
+    session.recent = [];
+    session.answered = 0;
+    session.refreshesShown = 0;
+    session.freeplay = false;
+    session.awaitingAck = false;
+    session.ausFreiemUeben = false;
+    // Nach einem Profilwechsel zählt die erste Antwort als Sitzung des neuen Profils.
+    session.sitzungGezaehlt = false;
+    el.done.hidden = true;
+    el.trainer.hidden = false;
+    renderTtsButton();
+    renderSttButton();
+    nextQuestion();
+  }
+
+  menuButton.addEventListener('click', openMenu);
+  el.menuClose.addEventListener('click', closeMenu);
+
+  el.profileSelect.addEventListener('change', function () {
+    state.activeProfile = el.profileSelect.value;
+    persist();
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;   // Menü bleibt offen, Wechsel ist sichtbar
+  });
+
+  el.profileAdd.addEventListener('click', function () {
+    var name = el.profileName.value.trim();
+    if (name === '') return;
+    var created = ML.createProfile(state, name, Date.now());
+    state = created.state;
+    persist();
+    el.profileName.value = '';
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;
+  });
+
+  el.profileDelete.addEventListener('click', function () {
+    if (Object.keys(state.profiles).length <= 1) return;
+    if (!loeschBestaetigung) {
+      // Erster Klick fragt nur nach; ein Profil sind Wochen an Lernstand.
+      loeschBestaetigung = true;
+      el.profileDelete.textContent = 'Wirklich löschen?';
+      return;
+    }
+    state = ML.deleteProfile(state, el.profileSelect.value);
+    persist();
+    renderMenu();
+    restartSession();
+    el.menu.hidden = false;
+  });
+
+  el.threshold.addEventListener('change', function () {
+    var seconds = parseFloat(el.threshold.value);
+    if (isNaN(seconds) || seconds < 1 || seconds > 30) { renderMenu(); return; }
+    profile().settings.thresholdMs = Math.round(seconds * 1000);
+    persist();
+  });
+
+  // Die Sitzung wird erst bei der ersten Antwort gezählt (siehe submitAnswer).
+  renderTtsButton();
+  renderSttButton();
+  nextQuestion();
+
+  window.__app = { session: session, nextQuestion: nextQuestion,
+                   submitAnswer: submitAnswer, render: render,
+                   profile: profile, persist: persist,
+                   renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
+                   renderTtsButton: renderTtsButton, speak: speak };
+})();
+</script>
+</body>
+</html>
