@@ -20,6 +20,11 @@ Kontext, aber die Spracheingabe wird dort aus Sicherheitsgründen blockiert.
 Ein Lernender, der Antworten sprechen möchte, nutzt den lokalen Server oder
 GitHub Pages.
 
+Bei eingeschaltetem Mikrofon steht unter der Aufgabe eine Statuszeile: ein
+Pegel aus fünf Balken zeigt, ob man noch warten muss, sprechen darf, gehört
+wird oder ob gerade erkannt wird. Nach jedem Versuch steht darunter der
+Wortlaut, den der Erkenner verstanden hat — auch wenn er danebenlag.
+
 Für die **Spracheingabe** ist HTTPS oder `localhost` Pflicht:
 
 ```
@@ -58,7 +63,8 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-50 Tests abgedeckt: Zahlenparser, Scheduler und Speicherschicht in `logic.js`.
+60 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht und der
+Anzeigezustand des Mikrofons in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 

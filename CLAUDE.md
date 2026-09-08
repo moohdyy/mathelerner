@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 50 Tests)
+node --test                          # gesamte Suite (aktuell 60 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -40,7 +40,7 @@ Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 oder `Math.random()` an.** Zeit, Zufall und Storage werden als Parameter
 hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Genau das macht Scheduler und Speicherschicht ohne
-Browser testbar, und genau daran hängen die 50 Tests.
+Browser testbar, und genau daran hängen die 60 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -91,6 +91,15 @@ sind mehrfach falsch umgesetzt worden:
   dauerhafte Meldung ablegt, sieht sie nie — sie wird im selben Tick
   überschrieben, bevor der Browser zeichnet. Für Bleibendes gibt es
   `#speicherwarnung`.
+- **Die Mikrofon-Statuszeile hat dasselbe Problem und löst es mit einer
+  Sperre.** Der laufende Zustand wird bei jedem Ereignis aus der Lage neu
+  gerechnet (`ML.mikrofonZustand`); die kurzlebigen Meldungen — verstanden,
+  nicht verstanden, nichts gehört — setzt `mikMelden()` und hält damit die
+  Neuberechnung eine Weile fest. Ohne diese Sperre wäre „Verstanden: 40“
+  unsichtbar: die nächste Aufgabe folgt im selben Tick. Nur
+  `mikAktualisieren(true)` räumt die Sperre ab; das tun ausschließlich
+  bewusste Handlungen (Mikrofon aus, Menü auf) und die Ereignisse des
+  **aktuellen** Durchgangs.
 - **Beim Prüfen im Browser den Cache abschalten** (`Network.setCacheDisabled`).
   Ein Nachlauf mit alten Messwerten sieht exakt so aus wie ein wirkungsloser
   Fix.
