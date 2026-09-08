@@ -4,8 +4,8 @@ Stand: 2026-09-08, Branch `feature/einmaleins-trainer`.
 
 Dieses Dokument hält fest, welche Entscheidungen während der Umsetzung
 ohne Rückfrage getroffen wurden und warum. Es ist bewusst versioniert:
-das Arbeitsprotokoll der Umsetzung liegt unter `.superpowers/` und ist
-nicht in git, die Entscheidungen daraus gehören aber dauerhaft ins Repo.
+das Arbeitsprotokoll liegt unter `.superpowers/` und ist nicht in git,
+die Entscheidungen daraus gehören aber dauerhaft ins Repo.
 
 ## Abgeschlossene Schritte
 
@@ -20,6 +20,9 @@ nicht in git, die Entscheidungen daraus gehören aber dauerhaft ins Repo.
 - Task 9: complete (commits 6082ddd..361aa4d, review clean)
 - Task 10: complete (commits 361aa4d..cdf1398, review clean nach 1 Fixrunde)
 - Task 11: complete (commits cdf1398..c0735af, review clean nach 1 Fixrunde)
+- Task 12: complete (commits 4415d4b..b1c0ec1, review clean)
+- Task 13: complete (commits b1c0ec1..2d9120c)
+- Schlusswelle: complete (commits 2d9120c..eae6d69, 50/50 gruen)
 
 ## Entscheidungen
 
@@ -178,4 +181,33 @@ Ruling 19: Fuenf Punkte in EINE Fixrunde, alle gegen den Plantext.
   — Kosten wenn falsch: (a)(b) korrumpieren den Lernstand und sind die
     eigentlichen Risiken; (c) verbrennt CPU; (d) entfernt totes Feld; (e) macht
     einen Knopf ehrlich, der sonst zu einem nicht funktionierenden Weg einlaedt.
+
+Ruling 20: Fixwelle F1-F14 in EINEM Dispatch, statt die Findings zu parken.
+  — C1 freies Ueben wertete Karten, obwohl meine eigene Spec Zeile 141
+    "ohne Boxwirkung" sagt: zehn Minuten Spielen verschieben den ganzen
+    Auffrischungsplan von 2 auf 30 Tage.
+  — C2 der Parser las die ERSTE Zahl im Satz: "sechs mal sieben ist
+    zweiundvierzig" ergab 6. Von 100 Karten-Saetzen 90 falsch. Genau die
+    natuerlichste Antwortform, wenn die Aufgabe vorgelesen wurde.
+  — C3 Loeschen vernichtete ein Profil mit einem Klick ohne Rueckfrage.
+  — Kosten wenn falsch: die Fixwelle ist gross; dafuer wurde sie einzeln
+    nachgemessen statt geglaubt.
+Ruling 21: F7 (verspaetetes Erkennungsergebnis) brauchte eine zweite Runde.
+  — Mein vorgeschriebener Waechter war logisch unwirksam: er merkt sich die
+    Karte beim Start des Zuhoerens, und genau dieser Merker wird fuer die
+    naechste Aufgabe ueberschrieben, bevor das alte Ergebnis eintrifft. Ein
+    einzelner wiederverwendeter Erkenner kann Durchgaenge nicht unterscheiden.
+    Loesung: ein Erkenner je Durchgang, Karte im Abschluss festgehalten.
+  — Der Implementer fand dabei, dass MEIN Fix eine Endlosschleife erzeugt
+    haette (128 zusaetzliche Erkenner in 75ms gemessen) und ergaenzte einen
+    Identitaets-Waechter. Richtig erkannt, uebernommen.
+Ruling 22: F14 (Speicherwarnung) brauchte ebenfalls eine zweite Runde.
+  — Die Warnung landete in #feedback, das bei JEDER Antwort neu geschrieben
+    wird; sie wurde im selben Tick ueberschrieben, bevor der Browser sie
+    zeichnen konnte. Nachgemessen: unsichtbar. Eigenes Element, bleibt stehen.
+Ruling 23: Formulierung "mit Enter oder dem Knopf weiter" statt meiner Vorgabe
+    "weiter mit Enter oder OK".
+  — Meine Vorgabe nannte das Label "OK", waehrend der Knopf in genau diesem
+    Moment "Weiter" heisst. Der Implementer meldete den Widerspruch statt ihn
+    zu uebernehmen; sein Vorschlag stimmt unabhaengig vom Label.
 
