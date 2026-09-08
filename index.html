@@ -71,6 +71,9 @@
     border: 1px solid var(--line); border-radius: .5rem;
   }
   .row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+  #stats { font-size: .9rem; color: var(--muted); line-height: 1.7; }
+  #stats table { border-collapse: collapse; margin-top: .5rem; }
+  #stats td { padding: .1rem .8rem .1rem 0; font-variant-numeric: tabular-nums; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -100,6 +103,9 @@
     <label for="threshold">Zeitschwelle in Sekunden</label>
     <input id="threshold" type="number" min="1" max="30" step="0.5">
   </div>
+
+  <h2>Fortschritt</h2>
+  <div id="stats"></div>
 
   <button id="menu-close">Zurück zum Üben</button>
 </section>
@@ -549,6 +555,37 @@
   menuButton.title = 'Profile und Einstellungen';
   el.toolbar.appendChild(menuButton);
 
+  function renderStats() {
+    var p = profile();
+    var keys = Object.keys(p.cards);
+    var boxes = [0, 0, 0, 0];
+    var timed = [];
+    keys.forEach(function (k) {
+      var c = p.cards[k];
+      boxes[c.box]++;
+      if (c.bestMs !== null && c.box < ML.BOX_MASTERED) timed.push({ key: k, ms: c.bestMs });
+    });
+    timed.sort(function (a, b) { return b.ms - a.ms; });
+
+    var html = '<div>offen: <strong>' + ML.openCount(p) + '</strong> von 100' +
+               ' &middot; gemeistert: <strong>' + boxes[3] + '</strong></div>' +
+               '<div>Box 0: ' + boxes[0] + ' &middot; Box 1: ' + boxes[1] +
+               ' &middot; Box 2: ' + boxes[2] + '</div>' +
+               '<div>Antworten insgesamt: ' + p.stats.totalAnswers +
+               ' &middot; Sitzungen: ' + p.stats.sessions + '</div>';
+
+    if (timed.length > 0) {
+      html += '<div style="margin-top:.6rem">Langsamste offene Aufgaben</div><table>';
+      timed.slice(0, 5).forEach(function (row) {
+        var ab = ML.parseCardKey(row.key);
+        html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
+                (row.ms / 1000).toFixed(1) + ' s</td></tr>';
+      });
+      html += '</table>';
+    }
+    document.getElementById('stats').innerHTML = html;
+  }
+
   function renderMenu() {
     el.profileSelect.innerHTML = '';
     Object.keys(state.profiles).forEach(function (id) {
@@ -560,6 +597,7 @@
     });
     el.threshold.value = (thresholdMs() / 1000).toString();
     el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
+    renderStats();
   }
 
   function openMenu() { renderMenu(); el.menu.hidden = false; }
