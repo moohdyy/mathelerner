@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Einmaleins</title>
+<!-- Tab-Symbol direkt eingebettet: ein Malzeichen auf grüner Kachel in den
+     Farben aus :root (--ok und --bg). Als Data-URI bleibt es bei genau zwei
+     ausgelieferten Dateien, und der Browser fragt nicht mehr nach
+     /favicon.ico. Das „#“ der Farbwerte muss als %23 kodiert sein. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232e7d32'/%3E%3Cpath d='M10 10L22 22M22 10L10 22' stroke='%23fbfbfa' stroke-width='5.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #fbfbfa; --fg: #1a1a1a; --muted: #8a8a85;
