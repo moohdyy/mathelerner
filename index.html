@@ -49,6 +49,9 @@
   #confirm:active { color: var(--fg); border-color: var(--fg); }
   #feedback { min-height: 1.6em; font-size: 1.1rem; color: var(--muted); text-align: center; }
   #progress { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #speicherwarnung {
+    font-size: .9rem; color: var(--bad); text-align: center; max-width: 32ch;
+  }
   #toolbar { position: fixed; top: 1rem; right: 1rem; display: flex; gap: .4rem; }
   #toolbar button {
     font-size: 1.1rem; line-height: 1; padding: .45rem .55rem; cursor: pointer;
@@ -131,6 +134,7 @@
 </div>
 
 <div id="progress"></div>
+<div id="speicherwarnung" hidden></div>
 
 <script src="logic.js"></script>
 <script>
@@ -143,6 +147,7 @@
     confirm: document.getElementById('confirm'),
     feedback: document.getElementById('feedback'),
     progress: document.getElementById('progress'),
+    speicherwarnung: document.getElementById('speicherwarnung'),
     trainer: document.getElementById('trainer'),
     done: document.getElementById('done'),
     freeplay: document.getElementById('freeplay'),
@@ -185,9 +190,12 @@
   function persist() {
     var ok = ML.saveState(window.localStorage, state);
     if (!ok && !speicherWarnungGezeigt) {
-      // Einmal Bescheid geben statt den Verlust stillschweigend hinzunehmen.
       speicherWarnungGezeigt = true;
-      el.feedback.textContent = 'Fortschritt kann nicht gespeichert werden';
+      // Eigenes Element: #feedback wird bei jeder Antwort neu geschrieben und
+      // hätte die Warnung noch im selben Tick überschrieben.
+      el.speicherwarnung.textContent =
+        'Achtung: Der Fortschritt kann in diesem Browser nicht gespeichert werden.';
+      el.speicherwarnung.hidden = false;
     }
   }
 
@@ -304,7 +312,7 @@
       nextQuestion();
     } else {
       flash('bad');
-      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — Enter für weiter';
+      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — weiter mit Enter oder OK';
       el.confirm.textContent = 'Weiter';
       session.awaitingAck = true;
       stopListening();   // während der Fehleranzeige nicht zuhören
