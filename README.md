@@ -63,7 +63,7 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-60 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht und der
+63 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht und der
 Anzeigezustand des Mikrofons in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.

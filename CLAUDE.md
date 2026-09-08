@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 60 Tests)
+node --test                          # gesamte Suite (aktuell 63 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
