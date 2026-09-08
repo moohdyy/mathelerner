@@ -216,14 +216,20 @@
     render();
 
     if (profile().settings.tts && tts.unlocked) {
-      // Uhr läuft erst, wenn die Aufgabe fertig vorgelesen ist.
+      // Uhr und Mikrofon starten erst, wenn die Aufgabe fertig vorgelesen ist.
       session.startedAt = 0;
+      wirdVorgelesen = true;
+      stopListening();
       speak(spokenQuestion(ab.a, ab.b), function () {
-        if (session.currentKey === key) session.startedAt = Date.now();
+        wirdVorgelesen = false;
+        if (session.currentKey !== key) return;
+        session.startedAt = Date.now();
+        if (stt.active) startListening();
       });
+    } else {
+      wirdVorgelesen = false;
+      if (stt.active) startListening();
     }
-
-    if (stt.active) startListening();
   }
 
   // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
@@ -284,6 +290,10 @@
     voice: null,
     unlocked: false
   };
+
+  // Solange die Aufgabe vorgelesen wird, darf das Mikrofon nicht zuhören —
+  // sonst erkennt es die eigene Sprachausgabe als Antwort.
+  var wirdVorgelesen = false;
 
   function pickGermanVoice() {
     if (!tts.supported) return;
@@ -374,8 +384,13 @@
       var schluessel = session.currentKey;
       var ab = ML.parseCardKey(schluessel);
       session.startedAt = 0;
+      wirdVorgelesen = true;
+      stopListening();
       speak(spokenQuestion(ab.a, ab.b), function () {
-        if (session.currentKey === schluessel) session.startedAt = Date.now();
+        wirdVorgelesen = false;
+        if (session.currentKey !== schluessel) return;
+        session.startedAt = Date.now();
+        if (stt.active) startListening();
       });
     } else {
       window.speechSynthesis.cancel();
@@ -387,13 +402,16 @@
 
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  var STT_MAX_FEHLER_IN_FOLGE = 5;
+
   var stt = {
     supported: !!SR,
-    secure: window.isSecureContext === true,
+    secure: window.isSecureContext === true && window.location.protocol !== 'file:',
     active: false,
     recognizer: null,
     spokeEndAt: 0,
-    permissionDenied: false
+    permissionDenied: false,
+    fehlerInFolge: 0
   };
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
@@ -427,6 +445,7 @@
     });
 
     rec.addEventListener('result', function (event) {
+      stt.fehlerInFolge = 0;
       var alts = event.results[0];
       var numbers = [];
       for (var i = 0; i < alts.length; i++) {
@@ -453,8 +472,15 @@
         return;
       }
       // no-speech, audio-capture, network, aborted: nichts werten, neu hören.
+      if (event.error === 'aborted') return;   // eigener stopListening()-Aufruf, kein Fehler
+      stt.fehlerInFolge++;
+      if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
+        setSttActive(false);
+        el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
+        return;
+      }
       if (event.error === 'no-speech') retryUnderstood('Nichts gehört — bitte nochmal');
-      else if (event.error !== 'aborted') retryUnderstood('Mikrofon-Problem — bitte nochmal');
+      else retryUnderstood('Mikrofon-Problem — bitte nochmal');
     });
 
     rec.addEventListener('end', function () {
@@ -472,6 +498,7 @@
 
   function startListening() {
     if (!stt.active || !stt.recognizer) return;
+    if (wirdVorgelesen) return;
     stt.spokeEndAt = 0;
     try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
   }
@@ -483,8 +510,9 @@
 
   function setSttActive(on) {
     stt.active = on;
-    profile().settings.stt = on;
-    persist();
+    // Der Mikrofonzustand wird bewusst NICHT gespeichert: der Browser verlangt
+    // in jeder Sitzung eine neue Erlaubnis-Geste, ein wiederhergestelltes "an"
+    // wäre also gelogen. Das Feld bleibt im Schema auf seinem Vorgabewert.
     renderSttButton();
     if (on) { if (!stt.recognizer) stt.recognizer = buildRecognizer(); startListening(); }
     else { stopListening(); }
@@ -544,14 +572,17 @@
   }
 
   function restartSession() {
+    stopListening();
+    stt.spokeEndAt = 0;
     session.recent = [];
     session.answered = 0;
     session.refreshesShown = 0;
-    session.awaitingAck = false;
     session.freeplay = false;
+    session.awaitingAck = false;
     el.done.hidden = true;
     el.trainer.hidden = false;
     renderTtsButton();
+    renderSttButton();
     nextQuestion();
   }
 
