@@ -40,6 +40,34 @@ test('Speichern und Laden ergibt denselben Zustand', () => {
   assert.deepStrictEqual(ML.loadState(s), state);
 });
 
+test('ein Zustand mit unauffindbarem aktiven Profil wird repariert', () => {
+  const { state } = ML.createProfile(ML.defaultState(), 'Anna', NOW);
+  state.activeProfile = 'p9';
+  const s = fakeStorage({ [ML.STORAGE_KEY]: JSON.stringify(state) });
+  const geladen = ML.loadState(s);
+  assert.strictEqual(geladen.activeProfile, 'p1', 'rückt auf ein vorhandenes Profil');
+  assert.strictEqual(Object.keys(geladen.profiles).length, 1);
+});
+
+test('Profile ohne Karten werden verworfen', () => {
+  const { state } = ML.createProfile(ML.defaultState(), 'Anna', NOW);
+  state.profiles.p2 = { name: 'Kaputt' };
+  const s = fakeStorage({ [ML.STORAGE_KEY]: JSON.stringify(state) });
+  const geladen = ML.loadState(s);
+  assert.deepStrictEqual(Object.keys(geladen.profiles), ['p1']);
+  assert.strictEqual(geladen.activeProfile, 'p1');
+});
+
+test('saveState meldet, ob geschrieben werden konnte', () => {
+  assert.strictEqual(ML.saveState(fakeStorage({}), ML.defaultState()), true);
+  const gesperrt = {
+    getItem: () => null,
+    setItem: () => { throw new Error('QuotaExceededError'); }
+  };
+  assert.strictEqual(ML.saveState(gesperrt, ML.defaultState()), false,
+    'voller oder gesperrter Speicher wird gemeldet');
+});
+
 test('ein neues Profil bekommt alle 100 Karten in Box 0', () => {
   const p = ML.newProfile('Anna', NOW);
   assert.strictEqual(p.name, 'Anna');

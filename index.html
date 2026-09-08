@@ -40,6 +40,13 @@
     border: none; border-bottom: 3px solid var(--line); border-radius: 0;
   }
   #answer:focus { outline: none; border-bottom-color: var(--fg); }
+  #confirm {
+    font: inherit; font-size: 1.1rem;
+    width: min(22rem, 80vw); padding: .8rem 1rem; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); border-radius: .6rem;
+  }
+  #confirm:active { color: var(--fg); border-color: var(--fg); }
   #feedback { min-height: 1.6em; font-size: 1.1rem; color: var(--muted); text-align: center; }
   #progress { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   #toolbar { position: fixed; top: 1rem; right: 1rem; display: flex; gap: .4rem; }
@@ -114,6 +121,7 @@
   <div id="question" aria-live="polite">&nbsp;</div>
   <input id="answer" type="text" inputmode="numeric" autocomplete="off"
          autocorrect="off" spellcheck="false" aria-label="Antwort">
+  <button id="confirm" type="button">OK</button>
   <div id="feedback" aria-live="polite"></div>
 </main>
 
@@ -132,6 +140,7 @@
   var el = {
     question: document.getElementById('question'),
     answer: document.getElementById('answer'),
+    confirm: document.getElementById('confirm'),
     feedback: document.getElementById('feedback'),
     progress: document.getElementById('progress'),
     trainer: document.getElementById('trainer'),
@@ -162,12 +171,25 @@
     answered: 0,
     refreshesShown: 0,
     awaitingAck: false,   // wartet nach einem Fehler auf Enter
-    freeplay: false
+    freeplay: false,
+    ausFreiemUeben: false,   // aktuelle Karte stammt aus dem freien Weiterüben
+    sitzungGezaehlt: false   // erst die erste Antwort macht daraus eine Sitzung
   };
+
+  // Zwei-Schritt-Bestätigung für das Löschen eines Profils.
+  var loeschBestaetigung = false;
 
   function profile() { return state.profiles[state.activeProfile]; }
 
-  function persist() { ML.saveState(window.localStorage, state); }
+  var speicherWarnungGezeigt = false;
+  function persist() {
+    var ok = ML.saveState(window.localStorage, state);
+    if (!ok && !speicherWarnungGezeigt) {
+      // Einmal Bescheid geben statt den Verlust stillschweigend hinzunehmen.
+      speicherWarnungGezeigt = true;
+      el.feedback.textContent = 'Fortschritt kann nicht gespeichert werden';
+    }
+  }
 
   function thresholdMs() { return profile().settings.thresholdMs; }
 
@@ -214,11 +236,15 @@
     session.expected = ab.a * ab.b;
     session.startedAt = Date.now();
     session.awaitingAck = false;
+    session.ausFreiemUeben = ausFreiemUeben;
 
     el.question.textContent = ab.a + ' × ' + ab.b;
     el.answer.value = '';
     el.feedback.textContent = '';
-    el.answer.focus();
+    el.confirm.textContent = 'OK';
+    // Nicht ins unsichtbare Feld hinter dem offenen Menü fokussieren —
+    // das holte auf dem Handy die Zifferntastatur über das Menü.
+    if (el.menu.hidden) el.answer.focus();
     render();
 
     if (profile().settings.tts && tts.unlocked) {
@@ -249,12 +275,24 @@
     var correct = value === session.expected;
     var p = profile();
 
-    p.cards[session.currentKey] = ML.gradeAnswer(p.cards[session.currentKey], {
-      correct: correct, elapsedMs: elapsed,
-      thresholdMs: typeof overrideThresholdMs === 'number' ? overrideThresholdMs : thresholdMs(),
-      now: Date.now()
-    });
-    p.stats.totalAnswers++;
+    if (!session.sitzungGezaehlt) {
+      // Eine Sitzung ist laut Spec ein Seitenaufruf MIT mindestens einer Antwort.
+      p.stats.sessions++;
+      session.sitzungGezaehlt = true;
+    }
+
+    if (session.ausFreiemUeben) {
+      // Freies Weiterüben läuft laut Spec ohne Boxwirkung: die Karte wird
+      // nicht bewertet, es gibt nur die Rückmeldung.
+      p.stats.totalAnswers++;
+    } else {
+      p.cards[session.currentKey] = ML.gradeAnswer(p.cards[session.currentKey], {
+        correct: correct, elapsedMs: elapsed,
+        thresholdMs: typeof overrideThresholdMs === 'number' ? overrideThresholdMs : thresholdMs(),
+        now: Date.now()
+      });
+      p.stats.totalAnswers++;
+    }
 
     session.recent.push(session.currentKey);
     if (session.recent.length > ML.RECENT_MEMORY) session.recent.shift();
@@ -267,19 +305,32 @@
     } else {
       flash('bad');
       el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — Enter für weiter';
+      el.confirm.textContent = 'Weiter';
       session.awaitingAck = true;
       stopListening();   // während der Fehleranzeige nicht zuhören
       render();
     }
   }
 
-  el.answer.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
+  // Enter und die breite Touch-Fläche tun genau dasselbe — eine Funktion für
+  // beide, damit sie nicht auseinanderlaufen können.
+  function bestaetigen() {
     if (session.awaitingAck) { nextQuestion(); return; }
     var raw = el.answer.value.trim();
     if (!/^\d+$/.test(raw)) return;
     submitAnswer(parseInt(raw, 10));
+  }
+
+  el.answer.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    bestaetigen();
+  });
+
+  el.confirm.addEventListener('click', function () {
+    bestaetigen();
+    // Auf dem Tablet bleibt die Tastatur so am Feld statt am Knopf.
+    if (el.menu.hidden) el.answer.focus();
   });
 
   el.freeplay.addEventListener('click', function () {
@@ -417,7 +468,8 @@
     recognizer: null,
     spokeEndAt: 0,
     permissionDenied: false,
-    fehlerInFolge: 0
+    fehlerInFolge: 0,
+    hoertZuFuer: null   // Karte, für die gerade zugehört wird
   };
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
@@ -451,23 +503,33 @@
     });
 
     rec.addEventListener('result', function (event) {
+      if (stt.hoertZuFuer !== session.currentKey) return;   // Ergebnis gehört zu einer alten Aufgabe
       stt.fehlerInFolge = 0;
       var alts = event.results[0];
-      var numbers = [];
+      var kandidaten = [];
       for (var i = 0; i < alts.length; i++) {
-        var n = ML.parseGermanNumber(alts[i].transcript);
-        if (n !== null) numbers.push(n);
+        var zahlen = ML.parseGermanNumbers(alts[i].transcript);
+        if (zahlen.length > 0) kandidaten.push(zahlen);
       }
-      if (numbers.length === 0) {
+      if (kandidaten.length === 0) {
         retryUnderstood('Nicht verstanden — bitte nochmal');
         return;
       }
-      // Ist die richtige Zahl unter den Alternativen, gilt sie.
-      var value = numbers.indexOf(session.expected) !== -1 ? session.expected : numbers[0];
+      // Steht die richtige Zahl irgendwo in irgendeiner Alternative, gilt sie.
+      var wert = null;
+      for (var j = 0; j < kandidaten.length && wert === null; j++) {
+        if (kandidaten[j].indexOf(session.expected) !== -1) wert = session.expected;
+      }
+      if (wert === null) {
+        // Sonst zählt die LETZTE Zahl der ersten Alternative: wer die ganze
+        // Rechnung aufsagt, meint mit der letzten Zahl sein Ergebnis.
+        var erste = kandidaten[0];
+        wert = erste[erste.length - 1];
+      }
 
-      var elapsed = (stt.spokeEndAt || Date.now()) - session.startedAt;
+      var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
       if (session.startedAt === 0) elapsed = 0;
-      submitAnswer(value, elapsed, sttThresholdMs());
+      submitAnswer(wert, elapsed, sttThresholdMs());
     });
 
     rec.addEventListener('error', function (event) {
@@ -500,11 +562,18 @@
   // Erkennungsfehler werten die Karte NICHT — sie stellen die Aufgabe nur neu.
   function retryUnderstood(message) {
     el.feedback.textContent = message;
+    // Die Uhr beginnt von vorn: sonst liefe der zweite Versuch gegen die Zeit
+    // des ersten und könnte nie schnell genug sein.
+    session.startedAt = Date.now();
   }
 
   function startListening() {
     if (!stt.active || !stt.recognizer) return;
     if (wirdVorgelesen) return;
+    // Hinter dem offenen Menü wird nicht zugehört. Ohne diese Sperre startet
+    // der 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
+    if (!el.menu.hidden) return;
+    stt.hoertZuFuer = session.currentKey;
     stt.spokeEndAt = 0;
     try { stt.recognizer.start(); } catch (e) { /* läuft bereits */ }
   }
@@ -578,8 +647,11 @@
       html += '<div style="margin-top:.6rem">Langsamste offene Aufgaben</div><table>';
       timed.slice(0, 5).forEach(function (row) {
         var ab = ML.parseCardKey(row.key);
+        // Deutsche Dezimalschreibweise, und nie eine negative Zeit anzeigen.
+        var sek = Math.max(0, row.ms) / 1000;
+        var anzeige = sek.toFixed(1).replace('.', ',');
         html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
-                (row.ms / 1000).toFixed(1) + ' s</td></tr>';
+                anzeige + ' s</td></tr>';
       });
       html += '</table>';
     }
@@ -597,16 +669,27 @@
     });
     el.threshold.value = (thresholdMs() / 1000).toString();
     el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
+    // Ein scharfgeschaltetes Löschen darf keinen Kontextwechsel überleben.
+    loeschBestaetigung = false;
+    el.profileDelete.textContent = 'Löschen';
     renderStats();
   }
 
-  function openMenu() { renderMenu(); el.menu.hidden = false; }
+  function openMenu() {
+    // Hinter dem Menü darf weder die Uhr noch das Mikrofon weiterlaufen.
+    stopListening();
+    renderMenu();
+    el.menu.hidden = false;
+  }
 
   function closeMenu() {
     el.menu.hidden = true;
     el.trainer.hidden = session.currentKey === null;
     el.done.hidden = session.currentKey !== null;
+    // Die wartende Aufgabe wird ab der Rückkehr gemessen, nicht ab vorher.
+    if (session.currentKey !== null) session.startedAt = Date.now();
     el.answer.focus();
+    if (stt.active) startListening();   // Mikrofon war während des Menüs gesperrt
   }
 
   function restartSession() {
@@ -617,6 +700,9 @@
     session.refreshesShown = 0;
     session.freeplay = false;
     session.awaitingAck = false;
+    session.ausFreiemUeben = false;
+    // Nach einem Profilwechsel zählt die erste Antwort als Sitzung des neuen Profils.
+    session.sitzungGezaehlt = false;
     el.done.hidden = true;
     el.trainer.hidden = false;
     renderTtsButton();
@@ -649,6 +735,12 @@
 
   el.profileDelete.addEventListener('click', function () {
     if (Object.keys(state.profiles).length <= 1) return;
+    if (!loeschBestaetigung) {
+      // Erster Klick fragt nur nach; ein Profil sind Wochen an Lernstand.
+      loeschBestaetigung = true;
+      el.profileDelete.textContent = 'Wirklich löschen?';
+      return;
+    }
     state = ML.deleteProfile(state, el.profileSelect.value);
     persist();
     renderMenu();
@@ -663,8 +755,7 @@
     persist();
   });
 
-  profile().stats.sessions++;
-  persist();
+  // Die Sitzung wird erst bei der ersten Antwort gezählt (siehe submitAnswer).
   renderTtsButton();
   renderSttButton();
   nextQuestion();

@@ -196,6 +196,16 @@ test('ohne Lernkarten wird die Auffrischung auch gegen die Quote gestellt', () =
   assert.strictEqual(pick(cards, { answered: 1, refreshesShown: 1 }), '1x1');
 });
 
+test('eine gerade gestellte Auffrischung wird nicht sofort wiederholt', () => {
+  const cards = dueRefresh(cardsFrom({ '2x2': 0 }), '1x1', NOW - 1000);
+  assert.strictEqual(pick(cards, { recent: ['1x1'] }), '2x2', 'weicht auf die Lernkarte aus');
+});
+
+test('ohne Lernkarten wird die Auffrischung auch trotz Recency gestellt', () => {
+  const cards = dueRefresh({}, '1x1', NOW - 1000);
+  assert.strictEqual(pick(cards, { recent: ['1x1'] }), '1x1');
+});
+
 test('die am längsten überfällige Karte kommt zuerst', () => {
   let cards = dueRefresh({}, '1x1', NOW - 1000);
   cards = dueRefresh(cards, '2x2', NOW - 90000);

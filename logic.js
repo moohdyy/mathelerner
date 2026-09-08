@@ -48,7 +48,9 @@
     }
     // Formen, die die generative Tabelle nicht erzeugt:
     map[normalizeWord('eins')] = 1;      // "ein" wird erzeugt, gesprochen wird "eins"
-    map[normalizeWord('eine')] = 1;
+    // "eine" wird bewusst NICHT eingetragen: der Artikel steckt in
+    // Zögerfloskeln wie "vielleicht eine" und würde daraus eine falsche
+    // Antwort machen. Erkenner liefern für die Zahl "eins" oder "1".
     map[normalizeWord('zwo')] = 2;       // häufige Fehlerkennung
     return map;
   })();
@@ -57,28 +59,41 @@
   // ("zwei hundert drei und vierzig" = 6).
   var MAX_NUMBER_WORDS = 6;
 
-  function parseGermanNumber(text) {
-    if (text == null) return null;
+  // Läuft von links nach rechts durch den Text und liefert JEDE gefundene Zahl.
+  // An jeder Stelle gewinnt der längste Treffer, damit "acht und vierzig" als 48
+  // und nicht als 8 gelesen wird; danach geht es hinter dem Treffer weiter.
+  function parseGermanNumbers(text) {
+    if (text == null) return [];
     var raw = String(text);
+    var treffer = [];
 
-    // 1. Ziffernform hat Vorrang: "das ist 48!" -> 48
-    var digits = raw.match(/\d+/);
-    if (digits) return parseInt(digits[0], 10);
+    // Ziffernform hat Vorrang und wird vollständig gesammelt.
+    var ziffern = raw.match(/\d+/g);
+    if (ziffern) {
+      for (var d = 0; d < ziffern.length; d++) treffer.push(parseInt(ziffern[d], 10));
+      return treffer;
+    }
 
-    // 2. Wort-Teilfolgen: jede zusammenhängende Wortfolge zusammenkleben und
-    //    exakt nachschlagen. Längere Treffer gewinnen, damit "acht und vierzig"
-    //    als 48 und nicht als 8 gelesen wird.
     var words = raw.split(/\s+/).map(normalizeWord).filter(function (w) { return w.length > 0; });
-    var best = null, bestLen = 0;
-    for (var i = 0; i < words.length; i++) {
-      var joined = '';
+    var i = 0;
+    while (i < words.length) {
+      var best = null, bestLen = 0, joined = '';
       for (var len = 1; len <= MAX_NUMBER_WORDS && i + len <= words.length; len++) {
         joined += words[i + len - 1];
         var hit = WORD_TO_NUMBER[joined];
-        if (hit !== undefined && len > bestLen) { best = hit; bestLen = len; }
+        if (hit !== undefined) { best = hit; bestLen = len; }
       }
+      if (best !== null) { treffer.push(best); i += bestLen; }
+      else i += 1;
     }
-    return best;
+    return treffer;
+  }
+
+  // Die erste Zahl der Äußerung — eine Sicht auf parseGermanNumbers, damit es
+  // nur eine Implementierung gibt.
+  function parseGermanNumber(text) {
+    var alle = parseGermanNumbers(text);
+    return alle.length > 0 ? alle[0] : null;
   }
 
   /* ===================================================================
@@ -236,12 +251,35 @@
     if (!parsed || typeof parsed !== 'object') return defaultState();
     if (parsed.version !== STATE_VERSION) return defaultState();
     if (!parsed.profiles || typeof parsed.profiles !== 'object') return defaultState();
-    return parsed;
+
+    // Strukturell kaputte Profile verwerfen, statt die Seite daran sterben zu
+    // lassen: ein Profil ohne Karten ist unbrauchbar.
+    var gesund = {};
+    var ids = Object.keys(parsed.profiles);
+    for (var i = 0; i < ids.length; i++) {
+      var pr = parsed.profiles[ids[i]];
+      if (pr && typeof pr === 'object' && pr.cards && typeof pr.cards === 'object' &&
+          pr.settings && typeof pr.settings === 'object' &&
+          pr.stats && typeof pr.stats === 'object') {
+        gesund[ids[i]] = pr;
+      }
+    }
+    var uebrig = Object.keys(gesund);
+    var aktiv = parsed.activeProfile;
+    if (uebrig.indexOf(aktiv) === -1) aktiv = uebrig.length > 0 ? uebrig[0] : null;
+    return { version: STATE_VERSION, activeProfile: aktiv, profiles: gesund };
   }
 
+  // Liefert true, wenn geschrieben wurde. Ein fehlgeschlagener Schreibvorgang
+  // (privater Modus, Speicher voll) muss sichtbar werden dürfen.
   function saveState(storage, state) {
     var raw = JSON.stringify(state);
-    try { storage.setItem(STORAGE_KEY, raw); } catch (e) { /* Speicher voll oder gesperrt */ }
+    try {
+      storage.setItem(STORAGE_KEY, raw);
+      return true;
+    } catch (e) {
+      return false;   // Speicher voll oder gesperrt
+    }
   }
 
   function nextProfileId(profiles) {
@@ -283,6 +321,7 @@
 
   return {
     parseGermanNumber: parseGermanNumber,
+    parseGermanNumbers: parseGermanNumbers,
     _spellGerman: spellGerman,
     BOX_MASTERED: BOX_MASTERED,
     cardKey: cardKey,

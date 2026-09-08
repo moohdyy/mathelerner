@@ -65,4 +65,26 @@ test('liefert null, wenn keine Zahl enthalten ist', () => {
   assert.strictEqual(ML.parseGermanNumber(''), null);
   assert.strictEqual(ML.parseGermanNumber(null), null);
   assert.strictEqual(ML.parseGermanNumber('einigermaßen'), null);
+  assert.strictEqual(ML.parseGermanNumber('eine Katze'), null);
+});
+
+test('erkennt alle Zahlen in einem Satz', () => {
+  assert.deepStrictEqual(ML.parseGermanNumbers('sechs mal sieben ist zweiundvierzig'), [6, 7, 42]);
+  assert.deepStrictEqual(ML.parseGermanNumbers('8 mal 6 ist 48'), [8, 6, 48]);
+  assert.deepStrictEqual(ML.parseGermanNumbers('achtundvierzig'), [48]);
+  assert.deepStrictEqual(ML.parseGermanNumbers('keine Ahnung'), []);
+  assert.deepStrictEqual(ML.parseGermanNumbers(''), []);
+  assert.deepStrictEqual(ML.parseGermanNumbers(null), []);
+});
+
+test('die ganze Rechnung laut gesprochen liefert das Ergebnis als letzte Zahl', () => {
+  // Das ist die natürlichste Antwort eines Kindes, wenn die Aufgabe
+  // vorgelesen wurde. Vorher wurde daraus der erste Operand gelesen.
+  for (let a = 1; a <= 10; a++) {
+    for (let b = 1; b <= 10; b++) {
+      const satz = `${ML._spellGerman(a)} mal ${ML._spellGerman(b)} ist ${ML._spellGerman(a * b)}`;
+      const zahlen = ML.parseGermanNumbers(satz);
+      assert.strictEqual(zahlen[zahlen.length - 1], a * b, satz);
+    }
+  }
 });
