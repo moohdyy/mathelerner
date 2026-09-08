@@ -53,6 +53,77 @@
   }
   #confirm:active { color: var(--fg); border-color: var(--fg); }
   #feedback { min-height: 1.6em; font-size: 1.1rem; color: var(--muted); text-align: center; }
+
+  /* Mikrofon-Statusanzeige. Ein einziges Objekt — ein fünfteiliger Pegel —
+     trägt alle Zustände über Form, Bewegung und Farbe; die Wörter stützen ihn
+     nur. Ein Kind muss aus zwei Metern erkennen, ob es sprechen darf, ohne zu
+     lesen. Kein Rahmen, kein Schatten: die Seite hat sonst auch keine.
+     Die Höhe ist fest, damit kein Zustandswechsel die Aufgabe verschiebt. */
+  #mikrofonstatus {
+    display: flex; align-items: center; gap: .85rem;
+    height: 3.4rem; color: var(--muted);
+  }
+  #mikrofonpegel { display: flex; align-items: center; gap: .3rem; flex: none; }
+  #mikrofonpegel i {
+    display: block; width: .34rem; height: 2.1rem; border-radius: .17rem;
+    background: currentColor; opacity: .5;
+    transform: scaleY(.28); transform-origin: center;
+  }
+  #mikrofontexte { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+  #mikrofonzustand { font-size: 1.25rem; line-height: 1.25; }
+  #mikrofongehoert {
+    font-size: .95rem; line-height: 1.25; min-height: 1.25em; color: var(--muted);
+    /* So breit, dass ein ausgesprochenes „siebenundzwanzig“ ganz dasteht, und
+       schmal genug, dass die Zeile auf einem Handy nicht aus dem Rand läuft. */
+    max-width: min(30ch, 68vw);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Grün heißt sprechen, Rot heißt danebengegangen, Grau heißt warten. */
+  #mikrofonstatus.bereit, #mikrofonstatus.hoert { color: var(--ok); }
+  #mikrofonstatus.verstanden { color: var(--fg); }
+  #mikrofonstatus.fehler { color: var(--bad); }
+
+  @keyframes mik-atem  { 0%, 100% { transform: scaleY(.28); opacity: .4 }
+                         50%      { transform: scaleY(.55); opacity: 1 } }
+  @keyframes mik-pegel { 0%, 100% { transform: scaleY(.24); opacity: .55 }
+                         50%      { transform: scaleY(1);   opacity: 1 } }
+  @keyframes mik-welle { 0%, 55%, 100% { transform: scaleY(.24); opacity: .35 }
+                         25%           { transform: scaleY(.78); opacity: 1 } }
+
+  /* Bereit: ein ruhiger, gleichmäßiger Atem — angeschaltet, aber still. */
+  #mikrofonstatus.bereit i { animation: mik-atem 2.2s ease-in-out infinite; }
+  /* Hört: die Balken tanzen. Unterschiedliche Dauern statt Verzögerungen,
+     damit sie nie wieder gleichlaufen und es lebendig statt getaktet wirkt. */
+  #mikrofonstatus.hoert i { animation: mik-pegel .6s ease-in-out infinite; }
+  #mikrofonstatus.hoert i:nth-child(1) { animation-duration: .52s; }
+  #mikrofonstatus.hoert i:nth-child(2) { animation-duration: .79s; }
+  #mikrofonstatus.hoert i:nth-child(3) { animation-duration: .43s; }
+  #mikrofonstatus.hoert i:nth-child(4) { animation-duration: .67s; }
+  #mikrofonstatus.hoert i:nth-child(5) { animation-duration: .57s; }
+  /* Verarbeitet: eine Welle läuft durch — Arbeit, kein Zuhören mehr. */
+  #mikrofonstatus.verarbeitet i { animation: mik-welle 1.15s ease-in-out infinite; }
+  #mikrofonstatus.verarbeitet i:nth-child(2) { animation-delay: .12s; }
+  #mikrofonstatus.verarbeitet i:nth-child(3) { animation-delay: .24s; }
+  #mikrofonstatus.verarbeitet i:nth-child(4) { animation-delay: .36s; }
+  #mikrofonstatus.verarbeitet i:nth-child(5) { animation-delay: .48s; }
+  /* Angekommen: alle Balken stehen voll. Fehler: alle liegen flach. */
+  #mikrofonstatus.verstanden i { transform: scaleY(1); opacity: 1; }
+  #mikrofonstatus.fehler i { transform: scaleY(.28); opacity: .9; }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Ohne Bewegung müssen die Formen die Zustände tragen. */
+    #mikrofonpegel i { animation: none !important; }
+    #mikrofonstatus.bereit i { transform: scaleY(.55); opacity: 1; }
+    #mikrofonstatus.hoert i { opacity: 1; }
+    #mikrofonstatus.hoert i:nth-child(1) { transform: scaleY(.42); }
+    #mikrofonstatus.hoert i:nth-child(2) { transform: scaleY(.86); }
+    #mikrofonstatus.hoert i:nth-child(3) { transform: scaleY(.55); }
+    #mikrofonstatus.hoert i:nth-child(4) { transform: scaleY(1); }
+    #mikrofonstatus.hoert i:nth-child(5) { transform: scaleY(.6); }
+    #mikrofonstatus.verarbeitet i { opacity: .9; }
+    #mikrofonstatus.verarbeitet i:nth-child(odd) { transform: scaleY(.62); }
+  }
   #progress { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
   #speicherwarnung {
     font-size: .9rem; color: var(--bad); text-align: center; max-width: 32ch;
@@ -127,6 +198,13 @@
 
 <main id="trainer">
   <div id="question" aria-live="polite">&nbsp;</div>
+  <div id="mikrofonstatus" hidden>
+    <span id="mikrofonpegel" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span id="mikrofontexte">
+      <span id="mikrofonzustand" aria-live="polite"></span>
+      <span id="mikrofongehoert" aria-live="polite"></span>
+    </span>
+  </div>
   <input id="answer" type="text" inputmode="numeric" autocomplete="off"
          autocorrect="off" spellcheck="false" aria-label="Antwort">
   <button id="confirm" type="button">OK</button>
@@ -151,6 +229,9 @@
     answer: document.getElementById('answer'),
     confirm: document.getElementById('confirm'),
     feedback: document.getElementById('feedback'),
+    mikrofonstatus: document.getElementById('mikrofonstatus'),
+    mikrofonzustand: document.getElementById('mikrofonzustand'),
+    mikrofongehoert: document.getElementById('mikrofongehoert'),
     progress: document.getElementById('progress'),
     speicherwarnung: document.getElementById('speicherwarnung'),
     trainer: document.getElementById('trainer'),
@@ -229,6 +310,7 @@
       el.trainer.hidden = true;
       el.done.hidden = false;
       render();
+      mikAktualisieren();
       return;
     }
     var ausFreiemUeben = false;
@@ -281,6 +363,7 @@
     } else {
       wirdVorgelesen = false;
       if (stt.active) startListening();
+      else mikAktualisieren();
     }
   }
 
@@ -534,6 +617,114 @@
     console.log('[STT] #' + nr + ' ' + (karte === null ? '—' : karte) + ' ' + text);
   }
 
+  /* ---------- Statusanzeige des Mikrofons ---------- */
+
+  // Die Anzeige ist reine Rückmeldung: sie wertet keine Karte, reicht keine
+  // Antwort ein und fasst die Zeitmessung nicht an. Zwei Bausteine:
+  //
+  //   1. Der laufende Zustand wird aus der Lage abgeleitet (ML.mikrofonZustand)
+  //      und bei jedem Ereignis neu berechnet.
+  //   2. Die kurzlebigen Meldungen — verstanden, nicht verstanden, nichts
+  //      gehört — werden gesetzt und halten die Ableitung eine Weile fest.
+  //      Ohne diese Sperre wären sie unsichtbar: die nächste Aufgabe folgt im
+  //      selben Tick, genau wie bei #feedback.
+  var MIK_HALTEDAUER_MS = 1800;
+  // Der gehörte Text lebt länger als die Meldung: er soll noch dastehen,
+  // während das Kind über die nächste Aufgabe nachdenkt.
+  var MIK_ECHO_DAUER_MS = 7000;
+  var MIK_ECHO_MAX_ZEICHEN = 32;
+
+  var mik = {
+    spricht: false,       // zwischen speechstart/soundstart und speechend
+    verarbeitet: false,   // zwischen speechend und Ergebnis oder Fehler
+    sperrTimer: null,     // hält eine kurzlebige Meldung fest
+    echoTimer: null
+  };
+
+  var MIK_TEXTE = {};
+  MIK_TEXTE[ML.MIK_PAUSIERT] = 'Mikrofon pausiert';
+  MIK_TEXTE[ML.MIK_VORLESEN] = 'Noch nicht sprechen';
+  MIK_TEXTE[ML.MIK_STARTET] = 'Mikrofon startet …';
+  MIK_TEXTE[ML.MIK_BEREIT] = 'Jetzt sprechen';
+  MIK_TEXTE[ML.MIK_HOERT] = 'Ich höre dich';
+  MIK_TEXTE[ML.MIK_VERARBEITET] = 'Einen Moment …';
+
+  // Welche Balkenform zu welchem Zustand gehört. „wartet“ ist die ruhige
+  // Grundform für alles, was zum Warten auffordert.
+  var MIK_FORMEN = {};
+  MIK_FORMEN[ML.MIK_PAUSIERT] = 'wartet';
+  MIK_FORMEN[ML.MIK_VORLESEN] = 'wartet';
+  MIK_FORMEN[ML.MIK_STARTET] = 'wartet';
+  MIK_FORMEN[ML.MIK_BEREIT] = 'bereit';
+  MIK_FORMEN[ML.MIK_HOERT] = 'hoert';
+  MIK_FORMEN[ML.MIK_VERARBEITET] = 'verarbeitet';
+
+  function mikSchreiben(form, text) {
+    el.mikrofonstatus.hidden = false;
+    el.mikrofonstatus.className = form;
+    el.mikrofonzustand.textContent = text;
+  }
+
+  function mikSperreLoeschen() {
+    if (mik.sperrTimer === null) return;
+    clearTimeout(mik.sperrTimer);
+    mik.sperrTimer = null;
+  }
+
+  // Setzt eine kurzlebige Meldung und hält sie fest. Ein Aufruf mit erzwingen
+  // im Rücken (mikAktualisieren(true)) räumt sie jederzeit wieder ab.
+  function mikMelden(form, text) {
+    mikSperreLoeschen();
+    mikSchreiben(form, text);
+    mik.sperrTimer = setTimeout(function () {
+      mik.sperrTimer = null;
+      mikAktualisieren();
+    }, MIK_HALTEDAUER_MS);
+  }
+
+  function mikAktualisieren(erzwingen) {
+    if (erzwingen) mikSperreLoeschen();
+    else if (mik.sperrTimer !== null) return;   // kurzlebige Meldung steht noch
+    var zustand = ML.mikrofonZustand({
+      aktiv: stt.supported && stt.secure && stt.active,
+      pausiert: !el.menu.hidden || session.awaitingAck || session.currentKey === null,
+      wirdVorgelesen: wirdVorgelesen,
+      verarbeitet: mik.verarbeitet,
+      spricht: mik.spricht,
+      gestartet: stt.gestartet
+    });
+    if (zustand === ML.MIK_AUS) {
+      // Aus heißt weg: eine graue Zeile ohne Aussage lenkt beim Tippen nur ab.
+      el.mikrofonstatus.hidden = true;
+      el.mikrofonstatus.className = '';
+      el.mikrofonzustand.textContent = '';
+      mikEchoLoeschen();
+      return;
+    }
+    mikSchreiben(MIK_FORMEN[zustand], MIK_TEXTE[zustand]);
+  }
+
+  function mikEchoLoeschen() {
+    if (mik.echoTimer !== null) { clearTimeout(mik.echoTimer); mik.echoTimer = null; }
+    el.mikrofongehoert.textContent = '';
+  }
+
+  // Zeigt, was der Erkenner verstanden hat — auch und gerade dann, wenn es
+  // falsch war. textContent, nie innerHTML: der Text kommt von außen.
+  function mikEchoSetzen(text) {
+    mikEchoLoeschen();
+    var sauber = String(text === null || text === undefined ? '' : text).trim();
+    if (sauber === '') return;
+    if (sauber.length > MIK_ECHO_MAX_ZEICHEN) {
+      sauber = sauber.slice(0, MIK_ECHO_MAX_ZEICHEN) + '…';
+    }
+    el.mikrofongehoert.textContent = 'gehört: „' + sauber + '“';
+    mik.echoTimer = setTimeout(function () {
+      mik.echoTimer = null;
+      el.mikrofongehoert.textContent = '';
+    }, MIK_ECHO_DAUER_MS);
+  }
+
   // Die eine Frage, ob gerade überhaupt zugehört werden soll. In allen anderen
   // Zuständen ist Stille richtig, und der Wachhund hat zu schweigen.
   function zuhoerenErwartet() {
@@ -645,26 +836,49 @@
         sttProtokoll(nr, fuerKarte, 'gestartet (' + name + ')');
       }
       wachhundStellen(STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+      mikAktualisieren();   // ab hier steht „Jetzt sprechen“
     }
 
     rec.addEventListener('start', function () { beginnGemeldet('start'); });
     rec.addEventListener('audiostart', function () { beginnGemeldet('audiostart'); });
     // Nur Lebenszeichen, nicht protokolliert — sonst wird die Konsole beim
     // normalen Üben unbrauchbar.
+    // Nur der aktuelle Durchgang darf die Anzeige der aktuellen Aufgabe
+    // bewegen. Ein abgelöster Erkenner meldet sein Sprechen und sein Ende noch,
+    // nachdem der nächste Durchgang längst läuft.
+    function fuerAnzeigeGueltig() {
+      return rec === stt.recognizer && fuerKarte === session.currentKey;
+    }
+    function sprechenBegonnen() {
+      if (!fuerAnzeigeGueltig()) return;
+      mik.spricht = true;
+      mik.verarbeitet = false;
+      // Was zuletzt gehört wurde, ist überholt, sobald neu gesprochen wird.
+      mikEchoLoeschen();
+      mikAktualisieren(true);
+    }
+
     rec.addEventListener('soundstart', function () {
       sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+      sprechenBegonnen();
     });
     rec.addEventListener('speechstart', function () {
       sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
+      sprechenBegonnen();
     });
 
     rec.addEventListener('speechend', function () {
       // Zeitpunkt VOR der Erkennung — die Erkennungslatenz zählt nicht mit.
+      // Diese Zeile bleibt die erste im Handler und darf nichts vor sich haben.
       stt.spokeEndAt = Date.now();
       sttProtokoll(nr, fuerKarte, 'speechend');
       // Auf 'speechend' folgt 'result' oder 'error'; bleibt beides aus, hängt
       // die Erkennung.
       sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Ergebnis nach speechend');
+      if (!fuerAnzeigeGueltig()) return;
+      mik.spricht = false;
+      mik.verarbeitet = true;
+      mikAktualisieren(true);
     });
 
     rec.addEventListener('result', function (event) {
@@ -676,21 +890,35 @@
         sttProtokoll(nr, fuerKarte, 'result verworfen (andere Aufgabe)');
         return;
       }
+      mik.spricht = false;
+      mik.verarbeitet = false;
       stt.fehlerInFolge = 0;
       var alts = event.results[0];
       var kandidaten = [];
+      var kandidatentexte = [];   // nur für die Anzeige, nie für die Wertung
       for (var i = 0; i < alts.length; i++) {
         var zahlen = ML.parseGermanNumbers(alts[i].transcript);
-        if (zahlen.length > 0) kandidaten.push(zahlen);
+        if (zahlen.length > 0) {
+          kandidaten.push(zahlen);
+          kandidatentexte.push(alts[i].transcript);
+        }
       }
       if (kandidaten.length === 0) {
+        // Der Erkenner hat etwas gehört, nur keine Zahl darin. Genau das muss
+        // sichtbar werden — sonst rät das Kind, woran es lag.
+        mikEchoSetzen(alts.length > 0 ? alts[0].transcript : '');
+        mikMelden('fehler', 'Keine Zahl verstanden');
         retryUnderstood('Nicht verstanden — bitte nochmal');
         return;
       }
       // Steht die richtige Zahl irgendwo in irgendeiner Alternative, gilt sie.
       var wert = null;
+      var gewaehlt = 0;   // welche Alternative den Wert geliefert hat
       for (var j = 0; j < kandidaten.length && wert === null; j++) {
-        if (kandidaten[j].indexOf(session.expected) !== -1) wert = session.expected;
+        if (kandidaten[j].indexOf(session.expected) !== -1) {
+          wert = session.expected;
+          gewaehlt = j;
+        }
       }
       if (wert === null) {
         // Sonst zählt die LETZTE Zahl der ersten Alternative: wer die ganze
@@ -698,6 +926,12 @@
         var erste = kandidaten[0];
         wert = erste[erste.length - 1];
       }
+
+      // Angezeigt wird der Wortlaut, aus dem der gewertete Wert stammt — auch
+      // wenn er falsch ist. Die Meldung muss vor submitAnswer stehen: die
+      // nächste Aufgabe folgt sonst im selben Tick und überschreibt sie.
+      mikEchoSetzen(kandidatentexte[gewaehlt]);
+      mikMelden('verstanden', 'Verstanden: ' + wert);
 
       var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
       if (session.startedAt === 0) elapsed = 0;
@@ -725,14 +959,21 @@
       }
       // no-speech, audio-capture, network, aborted: nichts werten, neu hören.
       if (event.error === 'aborted') return;   // eigener stopListening()-Aufruf, kein Fehler
+      mik.spricht = false;
+      mik.verarbeitet = false;
       stt.fehlerInFolge++;
       if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
         setSttActive(false);
         el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
         return;
       }
-      if (event.error === 'no-speech') retryUnderstood('Nichts gehört — bitte nochmal');
-      else retryUnderstood('Mikrofon-Problem — bitte nochmal');
+      if (event.error === 'no-speech') {
+        mikMelden('fehler', 'Nichts gehört');
+        retryUnderstood('Nichts gehört — bitte nochmal');
+      } else {
+        mikMelden('fehler', 'Mikrofon-Problem');
+        retryUnderstood('Mikrofon-Problem — bitte nochmal');
+      }
     });
 
     rec.addEventListener('end', function () {
@@ -749,6 +990,8 @@
       // Dieser Durchgang ist beendet; der nächste stellt seinen eigenen Wachhund.
       wachhundLoeschen();
       stt.gestartet = false;
+      mik.spricht = false;
+      mik.verarbeitet = false;
       // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
       // startListening() prüft selbst, ob Zuhören gerade richtig wäre.
       startListening();
@@ -769,11 +1012,13 @@
     // Hinter dem offenen Menü, während des Vorlesens und während der
     // Fehleranzeige wird nicht zugehört. Ohne diese Sperre startet der
     // 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
-    if (!zuhoerenErwartet()) return;
+    if (!zuhoerenErwartet()) { mikAktualisieren(); return; }
     stopListening();                       // einen noch laufenden Durchgang beenden
     stt.spokeEndAt = 0;
     stt.laufNr++;
     stt.gestartet = false;
+    mik.spricht = false;
+    mik.verarbeitet = false;
     var nr = stt.laufNr;
     var karte = session.currentKey;
     stt.recognizer = buildRecognizer(karte, nr);
@@ -787,15 +1032,20 @@
       // verhindert eine Rekursion im selben Tick.
       sttProtokoll(nr, karte, 'start() warf: ' + (e && e.name ? e.name : e));
       wachhundStellen(STT_NEUSTART_VERZOEGERUNG_MS, 'start() warf');
+      mikAktualisieren();
       return;
     }
     wachhundStellen(sttStartFrist(), 'kein Start-Ereignis');
+    mikAktualisieren();   // „Mikrofon startet …“ bis der Beginn bestätigt ist
   }
 
   function stopListening() {
     // Hier wird bewusst nicht zugehört — also hat auch der Wachhund zu ruhen.
     wachhundLoeschen();
     stt.gestartet = false;
+    mik.spricht = false;
+    mik.verarbeitet = false;
+    mikAktualisieren();
     if (!stt.recognizer) return;
     try { stt.recognizer.abort(); } catch (e) { /* nicht gestartet */ }
   }
@@ -809,6 +1059,10 @@
     // startListening() baut den Erkenner selbst — pro Durchgang einen frischen.
     if (on) startListening();
     else stopListening();
+    // Das Ein- und Ausschalten ist eine bewusste Handlung: sie räumt auch eine
+    // noch stehende kurzlebige Meldung ab.
+    if (!on) mikEchoLoeschen();
+    mikAktualisieren(true);
   }
 
   var sttButton = null;
@@ -898,6 +1152,9 @@
     stopListening();
     renderMenu();
     el.menu.hidden = false;
+    // Erst jetzt ist das Menü offen — der Status muss danach neu gerechnet
+    // werden, sonst stünde er noch auf „Jetzt sprechen“.
+    mikAktualisieren(true);
   }
 
   function closeMenu() {
@@ -908,6 +1165,7 @@
     if (session.currentKey !== null) session.startedAt = Date.now();
     el.answer.focus();
     if (stt.active) startListening();   // Mikrofon war während des Menüs gesperrt
+    else mikAktualisieren();
   }
 
   function restartSession() {
@@ -984,7 +1242,8 @@
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
                    renderTtsButton: renderTtsButton, speak: speak,
                    stt: stt, setSttActive: setSttActive,
-                   startListening: startListening, stopListening: stopListening };
+                   startListening: startListening, stopListening: stopListening,
+                   mik: mik, mikAktualisieren: mikAktualisieren };
 })();
 </script>
 </body>

@@ -218,7 +218,39 @@
   }
 
   /* ===================================================================
-     Abschnitt 3 — Speicherschicht
+     Abschnitt 3 — Anzeigezustand der Spracheingabe
+     =================================================================== */
+
+  // Die Statusanzeige des Mikrofons hat genau eine schwierige Stelle: die
+  // Rangfolge der Zustände. Sie liegt deshalb hier als reine Funktion und ist
+  // ohne Browser prüfbar.
+  //
+  // Sie entscheidet ausschließlich darüber, was angezeigt wird — nie darüber,
+  // ob eine Karte gewertet wird, und nie über die Zeitmessung.
+  var MIK_AUS = 'aus';                  // Mikrofon aus oder nicht verfügbar
+  var MIK_PAUSIERT = 'pausiert';        // Menü offen, Fehleranzeige, nichts zu antworten
+  var MIK_VORLESEN = 'vorlesen';        // Aufgabe wird gesprochen — jetzt nicht sprechen
+  var MIK_STARTET = 'startet';          // Zuhören angefordert, Beginn noch nicht bestätigt
+  var MIK_BEREIT = 'bereit';            // Mikrofon ist offen — jetzt sprechen
+  var MIK_HOERT = 'hoert';              // es wird gerade gesprochen
+  var MIK_VERARBEITET = 'verarbeitet';  // nach speechend, vor dem Ergebnis
+
+  // Die Reihenfolge ist Absicht: was das Kind vom Sprechen abhält, gilt vor
+  // dem, was am Mikrofon gerade passiert. Sonst stünde „Jetzt sprechen“ da,
+  // während die Aufgabe noch vorgelesen wird.
+  function mikrofonZustand(lage) {
+    var l = lage || {};
+    if (!l.aktiv) return MIK_AUS;
+    if (l.pausiert) return MIK_PAUSIERT;
+    if (l.wirdVorgelesen) return MIK_VORLESEN;
+    if (l.verarbeitet) return MIK_VERARBEITET;
+    if (l.spricht) return MIK_HOERT;
+    if (l.gestartet) return MIK_BEREIT;
+    return MIK_STARTET;
+  }
+
+  /* ===================================================================
+     Abschnitt 4 — Speicherschicht
      =================================================================== */
 
   var STORAGE_KEY = 'mathelerner.v1';
@@ -337,6 +369,14 @@
     RECENT_MEMORY: RECENT_MEMORY,
     REFRESH_EVERY: REFRESH_EVERY,
     pickNext: pickNext,
+    MIK_AUS: MIK_AUS,
+    MIK_PAUSIERT: MIK_PAUSIERT,
+    MIK_VORLESEN: MIK_VORLESEN,
+    MIK_STARTET: MIK_STARTET,
+    MIK_BEREIT: MIK_BEREIT,
+    MIK_HOERT: MIK_HOERT,
+    MIK_VERARBEITET: MIK_VERARBEITET,
+    mikrofonZustand: mikrofonZustand,
     STORAGE_KEY: STORAGE_KEY,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     defaultState: defaultState,
