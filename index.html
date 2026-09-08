@@ -214,6 +214,14 @@
     el.feedback.textContent = '';
     el.answer.focus();
     render();
+
+    if (profile().settings.tts && tts.unlocked) {
+      // Uhr läuft erst, wenn die Aufgabe fertig vorgelesen ist.
+      session.startedAt = 0;
+      speak(spokenQuestion(ab.a, ab.b), function () {
+        if (session.currentKey === key) session.startedAt = Date.now();
+      });
+    }
   }
 
   // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
@@ -221,7 +229,9 @@
     if (session.currentKey === null || session.awaitingAck) return;
     if (value === null || isNaN(value)) return;   // nicht verstanden: nicht werten
 
-    var elapsed = typeof elapsedMs === 'number' ? elapsedMs : Date.now() - session.startedAt;
+    var elapsed = typeof elapsedMs === 'number'
+      ? elapsedMs
+      : (session.startedAt === 0 ? 0 : Date.now() - session.startedAt);
     var correct = value === session.expected;
     var p = profile();
 
@@ -263,6 +273,81 @@
     nextQuestion();
   });
 
+  /* ---------- Sprachausgabe ---------- */
+
+  var tts = {
+    supported: typeof window.speechSynthesis !== 'undefined',
+    voice: null,
+    unlocked: false
+  };
+
+  function pickGermanVoice() {
+    if (!tts.supported) return;
+    var voices = window.speechSynthesis.getVoices();
+    for (var i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.toLowerCase().indexOf('de') === 0) {
+        tts.voice = voices[i];
+        return;
+      }
+    }
+  }
+
+  if (tts.supported) {
+    pickGermanVoice();
+    // Die Stimmenliste ist beim ersten Aufruf oft noch leer.
+    window.speechSynthesis.addEventListener('voiceschanged', pickGermanVoice);
+  }
+
+  function speak(text, onEnd) {
+    if (!tts.supported) { if (onEnd) onEnd(); return; }
+    window.speechSynthesis.cancel();
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = 'de-DE';
+    if (tts.voice) u.voice = tts.voice;
+    u.rate = 0.95;
+    var done = false;
+    function finish() { if (done) return; done = true; if (onEnd) onEnd(); }
+    u.onend = finish;
+    u.onerror = finish;   // sonst bliebe die Uhr bei einem Engine-Fehler stehen
+    window.speechSynthesis.speak(u);
+  }
+
+  function spokenQuestion(a, b) { return a + ' mal ' + b; }
+
+  var ttsButton = document.createElement('button');
+  ttsButton.id = 'tts-toggle';
+  ttsButton.type = 'button';
+  ttsButton.textContent = '🔊';
+  ttsButton.title = 'Aufgabe vorlesen';
+  if (!tts.supported) {
+    ttsButton.disabled = true;
+    ttsButton.title = 'Dieser Browser kann nicht vorlesen';
+  }
+  el.toolbar.appendChild(ttsButton);
+
+  function renderTtsButton() {
+    ttsButton.setAttribute('aria-pressed', profile().settings.tts ? 'true' : 'false');
+  }
+
+  ttsButton.addEventListener('click', function () {
+    if (!tts.supported) return;
+    var p = profile();
+    p.settings.tts = !p.settings.tts;
+    persist();
+    renderTtsButton();
+    if (session.currentKey === null) return;   // Abschlussbildschirm: nichts vorzulesen
+    if (p.settings.tts) {
+      // Dieser Klick ist die Nutzergeste, die iOS/Safari verlangt.
+      tts.unlocked = true;
+      var ab = ML.parseCardKey(session.currentKey);
+      session.startedAt = 0;
+      speak(spokenQuestion(ab.a, ab.b), function () { session.startedAt = Date.now(); });
+    } else {
+      window.speechSynthesis.cancel();
+      session.startedAt = Date.now();
+    }
+  });
+
   var menuButton = document.createElement('button');
   menuButton.id = 'menu-button';
   menuButton.type = 'button';
@@ -296,6 +381,7 @@
     session.recent = [];
     session.answered = 0;
     session.refreshesShown = 0;
+    session.awaitingAck = false;
     session.freeplay = false;
     el.done.hidden = true;
     el.trainer.hidden = false;
@@ -343,12 +429,14 @@
 
   profile().stats.sessions++;
   persist();
+  renderTtsButton();
   nextQuestion();
 
   window.__app = { session: session, nextQuestion: nextQuestion,
                    submitAnswer: submitAnswer, render: render,
                    profile: profile, persist: persist,
-                   renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu };
+                   renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
+                   renderTtsButton: renderTtsButton, speak: speak };
 })();
 </script>
 </body>
