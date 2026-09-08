@@ -145,6 +145,11 @@
     padding: 6vh 5vw; overflow: auto;
     display: flex; flex-direction: column; gap: 1.4rem; align-items: flex-start;
   }
+  /* Das Menü ist eine scrollende Spalte. Ohne dieses `flex: none` staucht
+     Flexbox hohe Kinder zusammen, sobald der Inhalt länger wird als der
+     Bildschirm — das Aufgabenraster war so auf ein Drittel seiner Höhe
+     gequetscht und abgeschnitten. */
+  #menu > * { flex: none; }
   #menu h2 { font-size: 1rem; font-weight: 600; margin: 0; }
   #menu label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .3rem; }
   #menu select, #menu input[type="number"], #menu input[type="text"] {
@@ -157,9 +162,81 @@
     border: 1px solid var(--line); border-radius: .5rem;
   }
   .row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
+  #menu p { margin: 0; }
   #stats { font-size: .9rem; color: var(--muted); line-height: 1.7; }
   #stats table { border-collapse: collapse; margin-top: .5rem; }
   #stats td { padding: .1rem .8rem .1rem 0; font-variant-numeric: tabular-nums; }
+
+  /* Boxstufen. Eine Karte ist ein graues Gefäß, das sich mit jedem Treffer
+     weiter füllt — den Unterschied trägt der Füllstand, nicht die Farbe.
+     Wer Grün nicht von Grau unterscheiden kann, sieht ihn trotzdem: 0, 38,
+     70, 100 Prozent sind vier verschiedene Formen, und die gemeisterte Karte
+     trägt zusätzlich ein Zeichen.
+     Die Regeln hängen an #menu, sonst gewinnt `#menu button` mit seiner
+     `background`- und `border`-Kurzform gegen sie. */
+  #menu .stufe {
+    position: relative; flex: none; overflow: hidden;
+    width: 1.5rem; height: 1.5rem;
+    border: 1px solid var(--line); border-radius: .28rem;
+    background: var(--line);
+  }
+  #menu .stufe .fuellung {
+    position: absolute; left: 0; right: 0; bottom: 0; background: var(--ok);
+  }
+  #menu .stufe-0 .fuellung { height: 0; }
+  #menu .stufe-1 .fuellung { height: 38%; opacity: .45; }
+  #menu .stufe-2 .fuellung { height: 70%; opacity: .72; }
+  #menu .stufe-3 .fuellung { height: 100%; opacity: 1; }
+  #menu .stufe .zeichen {
+    position: absolute; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+    color: var(--bg); font-size: .8em; line-height: 1;
+  }
+
+  #boxlegende {
+    list-style: none; margin: 0; padding: 0; width: 100%; max-width: 34rem;
+    display: flex; flex-direction: column; gap: .95rem; font-size: .9rem;
+  }
+  #boxlegende li { display: flex; gap: .65rem; align-items: flex-start; }
+  #boxlegende .stufe { margin-top: .15rem; }
+  #boxlegende .text { flex: 1; min-width: 0; }
+  #boxlegende .kopf { display: flex; gap: .6rem; justify-content: space-between; }
+  #boxlegende .name { color: var(--fg); font-weight: 600; }
+  #boxlegende .anzahl {
+    color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  #boxlegende .erklaerung { color: var(--muted); line-height: 1.45; }
+  #boxregeln { font-size: .9rem; color: var(--muted); line-height: 1.6; max-width: 46ch; }
+
+  /* Das Raster: Zeile = erster Faktor, Spalte = zweiter Faktor. Feste
+     Tabellenbreite, damit auch auf 360 px alle elf Spalten hineinpassen. */
+  #kartenraster { width: 100%; max-width: 24rem; overflow-x: auto; }
+  #kartenraster table {
+    width: 100%; table-layout: fixed;
+    border-collapse: separate; border-spacing: 2px;
+  }
+  #kartenraster th {
+    padding: 0; text-align: center; font-weight: 400; font-size: .72rem;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  #kartenraster thead th:first-child { width: 1.4rem; }
+  #kartenraster td { padding: 0; }
+  /* Quadratisch über den Polster-Trick, nicht über `aspect-ratio`: in einer
+     Tabellenzelle mit `table-layout: fixed` ist die Breite beim Berechnen der
+     Höhe noch unbestimmt, und Chrome fällt dann auf die Inhaltshöhe zurück
+     (gemessen: 27,8 × 24 px statt quadratisch). Das prozentuale Polster
+     bezieht sich dagegen auf die Breite der Zelle. Die 2 px sind der Rahmen —
+     bei `box-sizing: border-box` zählt er zur Höhe. */
+  #menu #kartenraster .karte {
+    display: block; width: 100%; height: 0; padding: 0 0 calc(100% - 2px);
+    font-size: .78rem; cursor: pointer;
+  }
+  #menu #kartenraster .karte.gewaehlt { outline: 2px solid var(--fg); outline-offset: 1px; }
+  #kartendetail {
+    font-size: .9rem; color: var(--muted); line-height: 1.5;
+    min-height: 3em; max-width: 46ch;
+  }
+  #kartendetail.aktiv { color: var(--fg); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -192,6 +269,12 @@
 
   <h2>Fortschritt</h2>
   <div id="stats"></div>
+
+  <h2>Alle 100 Aufgaben</h2>
+  <ul id="boxlegende"></ul>
+  <p id="boxregeln"></p>
+  <div id="kartenraster"></div>
+  <p id="kartendetail" aria-live="polite"></p>
 
   <button id="menu-close">Zurück zum Üben</button>
 </section>
@@ -244,7 +327,12 @@
     profileAdd: document.getElementById('profile-add'),
     profileDelete: document.getElementById('profile-delete'),
     threshold: document.getElementById('threshold'),
-    menuClose: document.getElementById('menu-close')
+    menuClose: document.getElementById('menu-close'),
+    stats: document.getElementById('stats'),
+    boxlegende: document.getElementById('boxlegende'),
+    boxregeln: document.getElementById('boxregeln'),
+    kartenraster: document.getElementById('kartenraster'),
+    kartendetail: document.getElementById('kartendetail')
   };
 
   var state = ML.loadState(window.localStorage);
@@ -1096,20 +1184,16 @@
 
   function renderStats() {
     var p = profile();
-    var keys = Object.keys(p.cards);
-    var boxes = [0, 0, 0, 0];
+    var boxes = ML.boxVerteilung(p);
     var timed = [];
-    keys.forEach(function (k) {
+    ML.ALL_CARD_KEYS.forEach(function (k) {
       var c = p.cards[k];
-      boxes[c.box]++;
-      if (c.bestMs !== null && c.box < ML.BOX_MASTERED) timed.push({ key: k, ms: c.bestMs });
+      if (c && c.bestMs !== null && c.box < ML.BOX_MASTERED) timed.push({ key: k, ms: c.bestMs });
     });
     timed.sort(function (a, b) { return b.ms - a.ms; });
 
     var html = '<div>offen: <strong>' + ML.openCount(p) + '</strong> von 100' +
-               ' &middot; gemeistert: <strong>' + boxes[3] + '</strong></div>' +
-               '<div>Box 0: ' + boxes[0] + ' &middot; Box 1: ' + boxes[1] +
-               ' &middot; Box 2: ' + boxes[2] + '</div>' +
+               ' &middot; gemeistert: <strong>' + boxes[ML.BOX_MASTERED] + '</strong></div>' +
                '<div>Antworten insgesamt: ' + p.stats.totalAnswers +
                ' &middot; Sitzungen: ' + p.stats.sessions + '</div>';
 
@@ -1117,16 +1201,152 @@
       html += '<div style="margin-top:.6rem">Langsamste offene Aufgaben</div><table>';
       timed.slice(0, 5).forEach(function (row) {
         var ab = ML.parseCardKey(row.key);
-        // Deutsche Dezimalschreibweise, und nie eine negative Zeit anzeigen.
-        var sek = Math.max(0, row.ms) / 1000;
-        var anzeige = sek.toFixed(1).replace('.', ',');
         html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
-                anzeige + ' s</td></tr>';
+                ML.zeitText(row.ms) + '</td></tr>';
       });
       html += '</table>';
     }
-    document.getElementById('stats').innerHTML = html;
+    el.stats.innerHTML = html;
   }
+
+  // Was eine Box bedeutet — in einem Satz, den auch ein Kind versteht. Die
+  // Reihenfolge ist die Boxnummer. Die Auffrischungsfristen kommen aus
+  // REFRESH_INTERVALS_MS, damit der Text nicht vom Code abweichen kann.
+  var AUFFRISCHUNGSTAGE = ML.REFRESH_INTERVALS_MS.map(function (ms) {
+    return ms / ML.DAY_MS;
+  }).join(', dann ');
+
+  var BOX_ERKLAERUNGEN = [
+    'Noch nie richtig und schnell genug beantwortet — oder zuletzt danebengegangen.',
+    'Einmal richtig und schnell genug geschafft.',
+    'Zweimal hintereinander richtig und schnell genug — fehlt noch einmal.',
+    'Dreimal geschafft. Kommt nur noch zur Auffrischung dran: nach ' +
+      AUFFRISCHUNGSTAGE + ' Tagen.'
+  ];
+
+  var BOXREGELN =
+    'So wandern die Aufgaben: richtig und schnell genug — eine Box weiter. ' +
+    'Richtig, aber zu langsam — die Aufgabe bleibt stehen, geht aber auch nicht ' +
+    'zurück. Falsch — zurück in Box 0. Ein ↻ statt des Hakens heißt: Diese ' +
+    'gemeisterte Aufgabe ist zur Auffrischung fällig.';
+
+  var DETAIL_HINWEIS = 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.';
+
+  // Macht aus einem Element ein gefülltes Kartengefäß. Wird für die Legende
+  // und für jede der 100 Rasterzellen gebraucht.
+  function stufeAusstatten(elem, box, faellig) {
+    elem.classList.add('stufe', 'stufe-' + box);
+    var fuellung = document.createElement('span');
+    fuellung.className = 'fuellung';
+    elem.appendChild(fuellung);
+    if (box === ML.BOX_MASTERED) {
+      var zeichen = document.createElement('span');
+      zeichen.className = 'zeichen';
+      zeichen.textContent = faellig ? '↻' : '✓';
+      elem.appendChild(zeichen);
+    }
+    return elem;
+  }
+
+  function renderBoxlegende() {
+    var boxes = ML.boxVerteilung(profile());
+    el.boxlegende.innerHTML = '';
+    BOX_ERKLAERUNGEN.forEach(function (erklaerung, box) {
+      var li = document.createElement('li');
+      li.appendChild(stufeAusstatten(document.createElement('span'), box, false));
+
+      var text = document.createElement('span');
+      text.className = 'text';
+      var kopf = document.createElement('span');
+      kopf.className = 'kopf';
+      var name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = ML.BOX_NAMEN[box] + ' · Box ' + box;
+      var anzahl = document.createElement('span');
+      anzahl.className = 'anzahl';
+      anzahl.textContent = boxes[box] === 1 ? '1 Aufgabe' : boxes[box] + ' Aufgaben';
+      kopf.appendChild(name);
+      kopf.appendChild(anzahl);
+
+      var satz = document.createElement('span');
+      satz.className = 'erklaerung';
+      satz.textContent = erklaerung;
+
+      text.appendChild(kopf);
+      text.appendChild(document.createElement('br'));
+      text.appendChild(satz);
+      li.appendChild(text);
+      el.boxlegende.appendChild(li);
+    });
+    el.boxregeln.textContent = BOXREGELN;
+  }
+
+  // Das 10×10-Raster: Zeile = erster Faktor, Spalte = zweiter Faktor.
+  // Zeigt nur an — es wertet nichts und schreibt nichts.
+  function renderRaster() {
+    var ansichten = ML.kartenAnsichten(profile(), Date.now());
+    var nachKey = {};
+    ansichten.forEach(function (v) { nachKey[v.key] = v; });
+
+    var tabelle = document.createElement('table');
+    var kopfzeile = document.createElement('tr');
+    var ecke = document.createElement('th');
+    ecke.scope = 'col';
+    ecke.textContent = '×';
+    kopfzeile.appendChild(ecke);
+    var a, b, th;
+    for (b = 1; b <= 10; b++) {
+      th = document.createElement('th');
+      th.scope = 'col';
+      th.textContent = b;
+      kopfzeile.appendChild(th);
+    }
+    var thead = document.createElement('thead');
+    thead.appendChild(kopfzeile);
+    tabelle.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    for (a = 1; a <= 10; a++) {
+      var tr = document.createElement('tr');
+      var zeilenkopf = document.createElement('th');
+      zeilenkopf.scope = 'row';
+      zeilenkopf.textContent = a;
+      tr.appendChild(zeilenkopf);
+      for (b = 1; b <= 10; b++) {
+        var v = nachKey[ML.cardKey(a, b)];
+        var td = document.createElement('td');
+        var knopf = document.createElement('button');
+        knopf.type = 'button';
+        knopf.className = 'karte';
+        // Der Satz trägt die Zelle für Maus, Vorlesehilfe und Tippen
+        // gleichermaßen — auf dem Tablet gibt es kein title-Fähnchen.
+        knopf.title = v.beschreibung;
+        knopf.setAttribute('aria-label', v.beschreibung);
+        knopf.setAttribute('data-beschreibung', v.beschreibung);
+        stufeAusstatten(knopf, v.box, v.faellig);
+        td.appendChild(knopf);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    tabelle.appendChild(tbody);
+
+    el.kartenraster.innerHTML = '';
+    el.kartenraster.appendChild(tabelle);
+    // Ein neu gebautes Raster hat keine Auswahl mehr.
+    el.kartendetail.textContent = DETAIL_HINWEIS;
+    el.kartendetail.classList.remove('aktiv');
+  }
+
+  el.kartenraster.addEventListener('click', function (ev) {
+    var knopf = ev.target.closest('.karte');
+    if (!knopf) return;
+    var vorher = el.kartenraster.querySelector('.karte.gewaehlt');
+    if (vorher) vorher.classList.remove('gewaehlt');
+    knopf.classList.add('gewaehlt');
+    el.kartendetail.textContent = knopf.getAttribute('data-beschreibung');
+    el.kartendetail.classList.add('aktiv');
+  });
 
   function renderMenu() {
     el.profileSelect.innerHTML = '';
@@ -1143,6 +1363,8 @@
     loeschBestaetigung = false;
     el.profileDelete.textContent = 'Löschen';
     renderStats();
+    renderBoxlegende();
+    renderRaster();
   }
 
   function openMenu() {
@@ -1238,6 +1460,7 @@
                    submitAnswer: submitAnswer, render: render,
                    profile: profile, persist: persist,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
+                   renderRaster: renderRaster, renderStats: renderStats,
                    renderTtsButton: renderTtsButton, speak: speak,
                    stt: stt, setSttActive: setSttActive,
                    startListening: startListening, stopListening: stopListening,

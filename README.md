@@ -41,8 +41,17 @@ Branch auswählen, Ordner `/ (root)`.
 |---|---|
 | 🔊 | Aufgabe vorlesen |
 | 🎤 | Antwort sprechen statt tippen |
-| ☰ | Profile, Zeitschwelle, Statistik |
+| ☰ | Profile, Zeitschwelle, Fortschritt |
 | Enter oder der Knopf | Antwort abschicken, nach einem Fehler weiter |
+
+Unter „Alle 100 Aufgaben“ steht, was die vier Boxen bedeuten — **neu**,
+**geübt**, **fast sicher**, **gemeistert** — wie viele Aufgaben in jeder
+stehen und wie eine Aufgabe von einer Box in die nächste wandert. Darunter
+zeigt ein 10×10-Raster jede einzelne Aufgabe: die Zeile ist der erste Faktor,
+die Spalte der zweite, und jede Karte ist ein Gefäß, das sich mit jedem
+Treffer weiter füllt. Ein Tipp auf eine Zelle nennt Box, beste Zeit,
+Trefferquote und — bei gemeisterten Aufgaben — den nächsten
+Auffrischungstermin.
 
 Der Fortschritt liegt pro Profil im `localStorage` des Browsers und wird nicht
 zwischen Geräten synchronisiert.
@@ -63,8 +72,8 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-63 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht und der
-Anzeigezustand des Mikrofons in `logic.js`.
+79 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht, der
+Anzeigezustand des Mikrofons und die Fortschrittsanzeige in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 
