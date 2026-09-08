@@ -37,7 +37,7 @@ Branch auswählen, Ordner `/ (root)`.
 | 🔊 | Aufgabe vorlesen |
 | 🎤 | Antwort sprechen statt tippen |
 | ☰ | Profile, Zeitschwelle, Statistik |
-| Enter | Antwort abschicken, nach einem Fehler weiter |
+| Enter oder der Knopf | Antwort abschicken, nach einem Fehler weiter |
 
 Der Fortschritt liegt pro Profil im `localStorage` des Browsers und wird nicht
 zwischen Geräten synchronisiert.
@@ -58,7 +58,7 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-43 Tests abgedeckt: Zahlenparser, Scheduler und Speicherschicht in `logic.js`.
+50 Tests abgedeckt: Zahlenparser, Scheduler und Speicherschicht in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 
