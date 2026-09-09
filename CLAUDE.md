@@ -101,6 +101,19 @@ sind mehrfach falsch umgesetzt worden:
 
 ## Fallen, die schon einmal Zeit gekostet haben
 
+- **`#menu` deckt nur zu, solange nichts anderes positioniert ist.** Das Menü
+  ist ein Vollbild-Overlay und hatte lange kein `z-index` — es lag über dem
+  Trainer allein deshalb, weil `position: fixed` gegen lauter statische
+  Elemente gewinnt. Sobald im Trainer ein Element `position: relative` oder
+  einen `z-index` bekommt, gewinnt *es*, und der Inhalt steht mitten in den
+  Einstellungen. Genau so sind der Timerbalken und der Blitz durchs Menü
+  geschlagen. Das Menü hat jetzt `z-index: 10`; wer im Trainer etwas höher
+  legt, bricht es wieder.
+- **Pakete einzeln geprüft heißt nicht zusammen geprüft.** Der obige Fehler
+  war in keinem der vier Änderungszweige sichtbar, weil jeder für sich
+  stimmte. Erst ein Durchlauf gegen den zusammengeführten Stand hat ihn
+  gezeigt. Nach dem Zusammenführen mehrerer UI-Änderungen also noch einmal
+  im Browser nachsehen — besonders auf Elemente, die sich überlagern können.
 - **`file://` ist in Chrome ein „sicherer Kontext".** `window.isSecureContext`
   allein reicht nicht, um die Spracheingabe dort abzuschalten; die Prüfung
   braucht zusätzlich `location.protocol !== 'file:'`.
