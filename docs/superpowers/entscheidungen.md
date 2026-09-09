@@ -228,3 +228,59 @@ Ruling 24: Wachhund und Konsolen-Protokoll für die Spracheingabe.
   — `zuhoerenErwartet()` bündelt die Frage, ob überhaupt zugehört werden
     soll. Sie ersetzt die verstreuten Wächter in `startListening()`, damit
     Wachhund und Start nicht auseinanderlaufen können.
+
+Ruling 25: Sichtbarer Timer mit Kulanzfrist statt Abbruch auf der Zeitschwelle.
+  — Der Nutzer wollte den Timer ablaufen sehen und die Karte beim Ende als
+    falsch gewertet bekommen. Ein Abbruch exakt auf der Zeitschwelle hätte
+    aber die Spec-Regel "richtig, aber zu langsam lässt die Karte stehen"
+    ersatzlos beseitigt: es gäbe kein "zu langsam" mehr, weil vorher
+    abgebrochen würde. Der Nutzer hat sich deshalb ausdrücklich für zwei
+    Stufen entschieden — Schwelle, dann Kulanz, dann Frist.
+  — Faktor 3 (ZEIT_FRIST_FAKTOR in logic.js): die Kulanz ist damit doppelt so
+    lang wie die schnelle Zeit. Bei der Standardschwelle von 3 s bleiben 6 s
+    zum Nachdenken und Tippen, im Sprachmodus 8 s (Schwelle 4 s inklusive
+    Bonus). Ein kleinerer Faktor macht die Kulanz zur Formsache, ein größerer
+    lässt die Aufgabe faktisch nie ablaufen.
+  — Der Fristablauf hat bewusst KEINEN eigenen Weg in die Speicherschicht. Er
+    ruft submitAnswer mit einem vierten Argument `zeitUm`. Eine zweite Stelle,
+    die eine Karte wertet, hätte alle Sonderregeln doppelt gebraucht — freies
+    Weiterüben, Sitzungszählung, awaitingAck — und wäre irgendwann
+    auseinandergelaufen. So gilt automatisch auch im freien Weiterüben: keine
+    Boxwirkung, nur Rückmeldung.
+  — Anzeige und Wertung sind bewusst getrennt: gewertet wird weiterhin allein
+    die gemessene Zeit über gradeAnswer. Der Timer zeichnet per
+    requestAnimationFrame, die Frist hängt an einem eigenen setTimeout, und
+    beide rechnen aus Date.now() - session.startedAt. Im Hintergrundtab läuft
+    rAF nicht und setTimeout wird gedrosselt; der Fristablauf prüft die echte
+    Zeit deshalb noch einmal nach und stellt sich neu, wenn er zu früh kam.
+  — zeitLaeuft() bündelt die Frage, ob die Uhr überhaupt laufen darf, genauso
+    wie zuhoerenErwartet() das für das Mikrofon tut. zeitAktualisieren() ist
+    der einzige Weg, den Timer zu stellen, und prüft selbst. Nur so ziehen
+    alle vier Stellen mit, die die Uhr neu starten (Ende des Vorlesens in
+    nextQuestion und im 🔊-Handler, closeMenu, retryUnderstood), ohne dass
+    Anzeige und Wertung auseinanderlaufen können.
+  — Kosten wenn falsch: ein Timeout, der hinter dem offenen Menü, während des
+    Vorlesens oder nach einem Erkennungsfehler zuschlägt, zerstört Lernstand
+    ohne jede Handlung des Kindes. Genau diese Fälle sind einzeln im Browser
+    nachgemessen worden, nicht nur gelesen.
+
+Ruling 26: Rückmeldung als vollflächiges Aufleuchten mit Zeichen, nicht als
+    Umfärben der Aufgabenschrift.
+  — Vorher färbte flash() 260 ms lang die Schriftfarbe von #question um — an
+    genau der Stelle, von der der Blick beim Antworten längst weg ist. Der
+    Nutzer nannte das ausdrücklich zu wenig.
+  — Zwei Signale statt eines: Farbe UND Zeichen (✓ / ✗). Farbe allein schließt
+    aus, wer Grün und Rot schlecht unterscheidet — und das ist bei Jungen
+    keine Randgruppe.
+  — Gedämpft, nicht grell: Spitze bei 22 % Deckung, Rücklauf viermal so lang
+    wie der Anstieg, bei prefers-reduced-motion ohne Größenwechsel und mit
+    flacherer Spitze. Ein vollflächig blinkender Hintergrund wäre bei Kindern
+    unangebracht.
+  — Die Aufgabenschrift wird NICHT mehr mitgefärbt. Bei einer richtigen
+    Antwort folgt die nächste Aufgabe im selben Tick; über 720 ms hätte die
+    grüne Färbung auf der bereits neuen Aufgabe gestanden und dort etwas
+    Falsches behauptet.
+  — Eigene Farbe --warn für die Kulanzphase des Timers, statt --ok/--bad
+    wiederzuverwenden. An derselben Stelle im Bild dürfen dieselben zwei
+    Farben nicht zweierlei heißen; der Mikrofonstatus belegt Grün ohnehin
+    schon mit "jetzt sprechen".

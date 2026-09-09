@@ -44,6 +44,14 @@ Branch auswählen, Ordner `/ (root)`.
 | ☰ | Profile, Zeitschwelle, Fortschritt |
 | Enter oder der Knopf | Antwort abschicken, nach einem Fehler weiter |
 
+Unter der Aufgabe läuft ein Balken ab. Solange er grau ist, zählt eine
+richtige Antwort als Treffer und die Aufgabe wandert eine Box weiter. Ab der
+Marke wird er bernsteinfarben und dicker: die Antwort zählt weiterhin, die
+Aufgabe bleibt aber stehen — sie fällt dadurch aber auch nicht zurück. Ist der
+Balken leer, ist die Zeit um und die Aufgabe gilt als falsch. Die ganze
+Fläche leuchtet nach jeder Antwort kurz grün oder rot auf und trägt dabei ein
+✓ oder ✗ in der Mitte.
+
 Unter „Alle 100 Aufgaben“ steht, was die vier Boxen bedeuten — **neu**,
 **geübt**, **fast sicher**, **gemeistert** — wie viele Aufgaben in jeder
 stehen und wie eine Aufgabe von einer Box in die nächste wandert. Darunter
@@ -72,8 +80,9 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-79 Tests abgedeckt: Zahlenparser, Scheduler, Speicherschicht, der
-Anzeigezustand des Mikrofons und die Fortschrittsanzeige in `logic.js`.
+90 Tests abgedeckt: Zahlenparser, Scheduler, die zweistufige Zeitanzeige,
+Speicherschicht, der Anzeigezustand des Mikrofons und die Fortschrittsanzeige
+in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 

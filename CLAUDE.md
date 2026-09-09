@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 79 Tests)
+node --test                          # gesamte Suite (aktuell 90 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -40,7 +40,7 @@ Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 oder `Math.random()` an.** Zeit, Zufall und Storage werden als Parameter
 hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Genau das macht Scheduler und Speicherschicht ohne
-Browser testbar, und genau daran hängen die 79 Tests.
+Browser testbar, und genau daran hängen die 90 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -61,8 +61,34 @@ sind mehrfach falsch umgesetzt worden:
 - Eine Karte steigt **nur bei richtig UND schnell** eine Box. Richtig aber zu
   langsam lässt sie stehen — kein Fortschritt, aber ausdrücklich auch **kein**
   Rückschritt. Nur eine falsche Antwort setzt auf Box 0 zurück.
+- **Die sichtbare Uhr hat zwei Stufen, und die zweite ist der Grund, warum es
+  die erste Regel noch gibt.** Der Timer läuft zuerst gegen die Zeitschwelle
+  („schnell genug", Karte steigt) und danach durch eine **Kulanzphase** weiter
+  bis zur **Gesamtfrist** = `ML.ZEIT_FRIST_FAKTOR` × Schwelle (derzeit 3×). In
+  der Kulanz zählt eine richtige Antwort immer noch als „richtig, aber zu
+  langsam": Karte bleibt stehen, kein Rückschritt. Erst der Ablauf der
+  **Gesamtfrist** wertet die Karte als falsch.
+  Wer den Timer auf die Zeitschwelle verkürzt, beseitigt damit die Regel
+  darüber vollständig — es gäbe dann kein „zu langsam" mehr, weil vorher
+  abgebrochen würde. Die Phasen rechnet `ML.zeitPhase` / `ML.zeitAnzeige`; die
+  Wertung selbst macht weiterhin allein `gradeAnswer` aus der gemessenen Zeit.
 - Bei aktivem Mikrofon gilt `thresholdMs() + STT_THRESHOLD_BONUS_MS`, weil
-  Sprechen länger dauert als Tippen.
+  Sprechen länger dauert als Tippen. Das gilt auch für den sichtbaren Timer
+  und die Gesamtfrist — sonst läuft der Balken gegen eine andere Zeit, als
+  gewertet wird.
+- **Der Fristablauf wertet ausschließlich über `submitAnswer`.** Er ruft sie
+  mit dem vierten Argument `zeitUm` und fasst die Speicherschicht nicht selbst
+  an. Es darf genau eine Stelle geben, die eine Karte verändert; ein zweiter
+  Weg dorthin läuft irgendwann auseinander. Im freien Weiterüben wertet auch
+  der Fristablauf nichts — dieselbe Weiche wie bei jeder anderen Antwort.
+- **Der Timer läuft nie, wenn die Uhr steht.** `session.startedAt === 0` heißt
+  „wird gerade vorgelesen"; hinter dem offenen Menü und in `awaitingAck` läuft
+  ebenfalls nichts. `zeitLaeuft()` bündelt diese Frage, `zeitAktualisieren()`
+  ist der einzige Weg, den Timer zu stellen — deshalb darf sie aus jedem
+  Zustandswechsel heraus gerufen werden, und deshalb können Anzeige und
+  Wertung nicht auseinanderlaufen. Die vier Stellen, die die Uhr neu starten,
+  ziehen alle mit: das Ende des Vorlesens in `nextQuestion` und im
+  🔊-Handler, `closeMenu` und `retryUnderstood`.
 - Die Zeit wird bis `onspeechend` gemessen, **nicht** bis zum Erkennungs­ergebnis
   — die Erkennungslatenz von 0,5–1,5 s darf nicht in die Lernzeit einfließen.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.ausFreiemUeben`
@@ -114,6 +140,17 @@ sind mehrfach falsch umgesetzt worden:
 - **Regeln für Elemente im Menü brauchen `#menu` im Selektor.** `#menu button`
   hat die Spezifität (1,0,1) und schlägt jede reine Klasse — eine
   `.karte { border-style: dashed }` wäre wirkungslos verpufft.
+- **Eine CSS-Animation startet nicht neu, wenn die Klasse im selben Tick
+  gesetzt bleibt.** Zwei schnell aufeinanderfolgende richtige Antworten setzen
+  beide `#blitz` auf `ok`; ohne den erzwungenen Umbruch (`void
+  el.blitz.offsetWidth`) zwischen Entfernen und Setzen sieht der Browser
+  keinen Wechsel und das zweite Aufleuchten bleibt aus.
+- **`requestAnimationFrame` läuft im Hintergrundtab gar nicht und
+  `setTimeout` wird dort gedrosselt.** Der Timer zeichnet per rAF, die Frist
+  hängt aber an einem eigenen `setTimeout`, und beide rechnen aus
+  `Date.now() - session.startedAt`. Der Fristablauf prüft die echte Zeit noch
+  einmal nach und stellt sich neu, wenn er zu früh kam. Wer stattdessen Ticks
+  zählt, wertet im Hintergrundtab falsch.
 - **Beim Prüfen im Browser den Cache abschalten** (`Network.setCacheDisabled`).
   Ein Nachlauf mit alten Messwerten sieht exakt so aus wie ein wirkungsloser
   Fix.
