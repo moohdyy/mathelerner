@@ -2,13 +2,13 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const ML = require('../logic.js');
 
-test('erkennt Ziffernform', () => {
+test('recognises digits', () => {
   assert.strictEqual(ML.parseGermanNumber('48'), 48);
   assert.strictEqual(ML.parseGermanNumber('0'), 0);
   assert.strictEqual(ML.parseGermanNumber('100'), 100);
 });
 
-test('erkennt einfache Zahlwörter', () => {
+test('recognises simple number words', () => {
   assert.strictEqual(ML.parseGermanNumber('null'), 0);
   assert.strictEqual(ML.parseGermanNumber('eins'), 1);
   assert.strictEqual(ML.parseGermanNumber('ein'), 1);
@@ -28,25 +28,25 @@ test('erkennt einfache Zahlwörter', () => {
   assert.strictEqual(ML.parseGermanNumber('zwei hundert drei und vierzig'), 243);
 });
 
-test('kein Wort steht für zwei verschiedene Zahlen', () => {
-  // Absicherung der generativen Tabelle gegen Kollisionen.
+test('no word stands for two different numbers', () => {
+  // Guards the generated table against collisions.
   const seen = new Map();
   for (let n = 0; n <= 999; n++) {
     const w = ML._spellGerman(n);
-    assert.ok(!seen.has(w), `"${w}" steht für ${seen.get(w)} und ${n}`);
+    assert.ok(!seen.has(w), `"${w}" stands for ${seen.get(w)} and ${n}`);
     seen.set(w, n);
   }
 });
 
-test('erkennt jede Zahl von 0 bis 999 in ihrer Wortform', () => {
-  // Gegenprobe zur generativen Tabelle: jede Zahl muss sich selbst zurückliefern.
+test('recognises every number from 0 to 999 in its word form', () => {
+  // Counter-check on the generated table: every number must return itself.
   for (let n = 0; n <= 999; n++) {
     const word = ML._spellGerman(n);
     assert.strictEqual(ML.parseGermanNumber(word), n, `${n} -> "${word}"`);
   }
 });
 
-test('toleriert Satzzeichen, Großschreibung und Einbettung', () => {
+test('tolerates punctuation, capitalisation and embedding', () => {
   assert.strictEqual(ML.parseGermanNumber('Achtundvierzig.'), 48);
   assert.strictEqual(ML.parseGermanNumber('  ACHTUNDVIERZIG  '), 48);
   assert.strictEqual(ML.parseGermanNumber('acht und vierzig'), 48);
@@ -55,11 +55,11 @@ test('toleriert Satzzeichen, Großschreibung und Einbettung', () => {
   assert.strictEqual(ML.parseGermanNumber('das ist 48!'), 48);
 });
 
-test('kennt die häufige Fehlerkennung "zwo"', () => {
+test('knows the frequent misrecognition "zwo"', () => {
   assert.strictEqual(ML.parseGermanNumber('zwo'), 2);
 });
 
-test('liefert null, wenn keine Zahl enthalten ist', () => {
+test('returns null when no number is contained', () => {
   assert.strictEqual(ML.parseGermanNumber('keine Ahnung'), null);
   assert.strictEqual(ML.parseGermanNumber('weiß nicht'), null);
   assert.strictEqual(ML.parseGermanNumber(''), null);
@@ -68,7 +68,7 @@ test('liefert null, wenn keine Zahl enthalten ist', () => {
   assert.strictEqual(ML.parseGermanNumber('eine Katze'), null);
 });
 
-test('erkennt alle Zahlen in einem Satz', () => {
+test('recognises every number in a sentence', () => {
   assert.deepStrictEqual(ML.parseGermanNumbers('sechs mal sieben ist zweiundvierzig'), [6, 7, 42]);
   assert.deepStrictEqual(ML.parseGermanNumbers('8 mal 6 ist 48'), [8, 6, 48]);
   assert.deepStrictEqual(ML.parseGermanNumbers('achtundvierzig'), [48]);
@@ -77,31 +77,32 @@ test('erkennt alle Zahlen in einem Satz', () => {
   assert.deepStrictEqual(ML.parseGermanNumbers(null), []);
 });
 
-test('die ganze Rechnung laut gesprochen liefert das Ergebnis als letzte Zahl', () => {
-  // Das ist die natürlichste Antwort eines Kindes, wenn die Aufgabe
-  // vorgelesen wurde. Vorher wurde daraus der erste Operand gelesen.
+test('the whole sum spoken aloud yields the result as the last number', () => {
+  // That is the most natural answer of a child when the question was read out
+  // loud. Previously the first operand was taken from it.
   for (let a = 1; a <= 10; a++) {
     for (let b = 1; b <= 10; b++) {
-      const satz = `${ML._spellGerman(a)} mal ${ML._spellGerman(b)} ist ${ML._spellGerman(a * b)}`;
-      const zahlen = ML.parseGermanNumbers(satz);
-      assert.strictEqual(zahlen[zahlen.length - 1], a * b, satz);
+      const sentence =
+        `${ML._spellGerman(a)} mal ${ML._spellGerman(b)} ist ${ML._spellGerman(a * b)}`;
+      const numbers = ML.parseGermanNumbers(sentence);
+      assert.strictEqual(numbers[numbers.length - 1], a * b, sentence);
     }
   }
 });
 
-test('gesprochene Aufgabe: führende 1 wird zu „ein"', () => {
+test('spoken question: a leading 1 becomes „ein"', () => {
   assert.strictEqual(ML.spokenQuestion(1, 3), 'ein mal 3');
   assert.strictEqual(ML.spokenQuestion(1, 10), 'ein mal 10');
 });
 
-test('gesprochene Aufgabe: der zweite Faktor bleibt unangetastet', () => {
-  // „drei mal eins" ist richtiges Deutsch — die Ziffer bleibt hinten stehen,
-  // die Engine liest sie von selbst als „eins".
+test('spoken question: the second factor is left alone', () => {
+  // „drei mal eins" is correct German — the digit stays at the end and the
+  // engine reads it as „eins" all by itself.
   assert.strictEqual(ML.spokenQuestion(3, 1), '3 mal 1');
   assert.strictEqual(ML.spokenQuestion(1, 1), 'ein mal 1');
 });
 
-test('gesprochene Aufgabe: unauffällige Fälle bleiben Ziffern', () => {
+test('spoken question: unremarkable cases stay digits', () => {
   assert.strictEqual(ML.spokenQuestion(7, 8), '7 mal 8');
   assert.strictEqual(ML.spokenQuestion(2, 9), '2 mal 9');
   assert.strictEqual(ML.spokenQuestion(10, 10), '10 mal 10');

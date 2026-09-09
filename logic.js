@@ -1,6 +1,7 @@
-/* Einmaleins-Trainer — reine Logik.
-   Kein Zugriff auf window, document, localStorage, Date.now oder Math.random.
-   Zeit, Zufall und Storage werden hineingereicht. */
+/* Times-tables trainer — pure logic.
+   Never touches window, document, localStorage, Date.now or Math.random.
+   Time, randomness and storage are passed in.
+   All user-visible strings stay German; the code around them is English. */
 (function (root, factory) {
   var ML = factory();
   if (typeof module !== 'undefined' && module.exports) module.exports = ML;
@@ -9,7 +10,7 @@
   'use strict';
 
   /* ===================================================================
-     Abschnitt 1 — Zahlenparser
+     Section 1 — number parser
      =================================================================== */
 
   var ONES = ['null', 'ein', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun'];
@@ -31,8 +32,8 @@
     return ONES[h] + 'hundert' + (r === 0 ? '' : spellBelow100(r));
   }
 
-  // Normalisierung: Kleinschreibung, ß -> ss, alles außer Buchstaben und
-  // Ziffern entfernt. Wird auf Eingabe UND Tabelle gleich angewandt.
+  // Normalisation: lowercase, ß -> ss, everything but letters and digits
+  // removed. Applied identically to the input AND to the lookup table.
   function normalizeWord(s) {
     return String(s).toLowerCase().replace(/ß/g, 'ss').replace(/[^a-zäöü0-9]/g, '');
   }
@@ -40,38 +41,38 @@
   var WORD_TO_NUMBER = (function () {
     var map = Object.create(null);
     for (var n = 0; n <= 999; n++) map[normalizeWord(spellGerman(n))] = n;
-    // "hundertfünf" ist im Deutschen üblicher als "einhundertfünf"; die
-    // generative Tabelle erzeugt nur die lange Form. Für 100-199 zusätzlich
-    // die Form ohne führendes "ein" eintragen (3 Zeichen abschneiden).
+    // "hundertfünf" is more common in German than "einhundertfünf"; the
+    // generated table only produces the long form. For 100-199 add the form
+    // without the leading "ein" as well (drop 3 characters).
     for (var h = 100; h <= 199; h++) {
       map[normalizeWord(spellGerman(h)).slice(3)] = h;
     }
-    // Formen, die die generative Tabelle nicht erzeugt:
-    map[normalizeWord('eins')] = 1;      // "ein" wird erzeugt, gesprochen wird "eins"
-    // "eine" wird bewusst NICHT eingetragen: der Artikel steckt in
-    // Zögerfloskeln wie "vielleicht eine" und würde daraus eine falsche
-    // Antwort machen. Erkenner liefern für die Zahl "eins" oder "1".
-    map[normalizeWord('zwo')] = 2;       // häufige Fehlerkennung
+    // Forms the generated table does not produce:
+    map[normalizeWord('eins')] = 1;      // "ein" is generated, but people say "eins"
+    // "eine" is deliberately NOT added: the article hides inside hesitation
+    // phrases like "vielleicht eine" and would turn those into a wrong answer.
+    // Recognisers return "eins" or "1" for the number itself.
+    map[normalizeWord('zwo')] = 2;       // frequent misrecognition
     return map;
   })();
 
-  // Höchstzahl der Wörter, aus denen eine Zahl bestehen kann
+  // Maximum number of words a single number can consist of
   // ("zwei hundert drei und vierzig" = 6).
   var MAX_NUMBER_WORDS = 6;
 
-  // Läuft von links nach rechts durch den Text und liefert JEDE gefundene Zahl.
-  // An jeder Stelle gewinnt der längste Treffer, damit "acht und vierzig" als 48
-  // und nicht als 8 gelesen wird; danach geht es hinter dem Treffer weiter.
+  // Walks the text left to right and returns EVERY number found. At each
+  // position the longest match wins, so "acht und vierzig" reads as 48 and not
+  // as 8; afterwards scanning continues behind the match.
   function parseGermanNumbers(text) {
     if (text == null) return [];
     var raw = String(text);
-    var treffer = [];
+    var matches = [];
 
-    // Ziffernform hat Vorrang und wird vollständig gesammelt.
-    var ziffern = raw.match(/\d+/g);
-    if (ziffern) {
-      for (var d = 0; d < ziffern.length; d++) treffer.push(parseInt(ziffern[d], 10));
-      return treffer;
+    // Digits take precedence and are collected in full.
+    var digits = raw.match(/\d+/g);
+    if (digits) {
+      for (var d = 0; d < digits.length; d++) matches.push(parseInt(digits[d], 10));
+      return matches;
     }
 
     var words = raw.split(/\s+/).map(normalizeWord).filter(function (w) { return w.length > 0; });
@@ -83,31 +84,31 @@
         var hit = WORD_TO_NUMBER[joined];
         if (hit !== undefined) { best = hit; bestLen = len; }
       }
-      if (best !== null) { treffer.push(best); i += bestLen; }
+      if (best !== null) { matches.push(best); i += bestLen; }
       else i += 1;
     }
-    return treffer;
+    return matches;
   }
 
-  // Die erste Zahl der Äußerung — eine Sicht auf parseGermanNumbers, damit es
-  // nur eine Implementierung gibt.
+  // The first number of the utterance — a view on parseGermanNumbers so that
+  // there is only one implementation.
   function parseGermanNumber(text) {
-    var alle = parseGermanNumbers(text);
-    return alle.length > 0 ? alle[0] : null;
+    var all = parseGermanNumbers(text);
+    return all.length > 0 ? all[0] : null;
   }
 
-  // Der Text, den die Sprachausgabe vorliest. Die Faktoren bleiben absichtlich
-  // Ziffern — die Betonung überlässt man damit der Engine, das klingt
-  // natürlicher als ausgeschriebene Zahlwörter. Einzige Ausnahme ist die
-  // führende 1: die Engine liest die Ziffer als „eins", im Deutschen heißt es
-  // vor dem „mal" aber „ein mal drei". Der zweite Faktor bleibt unangetastet,
-  // dort ist „drei mal eins" richtig.
+  // The text the speech synthesis reads out. The factors deliberately stay
+  // digits — that leaves the stress to the engine, which sounds more natural
+  // than spelled-out number words. The only exception is a leading 1: the
+  // engine reads the digit as „eins", but in German it is „ein mal drei"
+  // before the „mal". The second factor is left alone, where „drei mal eins"
+  // is correct.
   function spokenQuestion(a, b) {
     return (a === 1 ? 'ein' : String(a)) + ' mal ' + b;
   }
 
   /* ===================================================================
-     Abschnitt 2 — Karten und Scheduler
+     Section 2 — cards and scheduler
      =================================================================== */
 
   var BOX_MASTERED = 3;
@@ -163,7 +164,7 @@
     }
 
     if (card.box === BOX_MASTERED) {
-      // Auffrischung: Treffer steigt eine Stufe, langsam wiederholt die Stufe.
+      // Refresh: a hit moves up one level, slow repeats the level.
       if (hit) next.refreshLevel = card.refreshLevel + 1;
       next.due = opts.now + refreshIntervalFor(next.refreshLevel);
       return next;
@@ -175,7 +176,7 @@
         next.due = opts.now + refreshIntervalFor(next.refreshLevel);
       }
     }
-    // richtig, aber zu langsam: Box bleibt unverändert
+    // correct but too slow: the box stays unchanged
     return next;
   }
 
@@ -190,7 +191,7 @@
       roll -= BOX_WEIGHTS[cards[keys[i]].box];
       if (roll < 0) return keys[i];
     }
-    return keys[keys.length - 1]; // Absicherung gegen Rundungsfehler
+    return keys[keys.length - 1]; // safeguard against rounding errors
   }
 
   var REFRESH_EVERY = 5;
@@ -209,7 +210,7 @@
       else if (card.due > 0 && card.due <= opts.now) due.push(key);
     }
 
-    // Am längsten überfällig zuerst — deterministisch.
+    // Most overdue first — deterministic.
     due.sort(function (x, y) { return cards[x].due - cards[y].due; });
 
     var quotaAllows = opts.refreshesShown * REFRESH_EVERY <= opts.answered;
@@ -228,112 +229,111 @@
   }
 
   /* ===================================================================
-     Abschnitt 3 — Zeitanzeige und Gesamtfrist
+     Section 3 — timer display and overall deadline
      =================================================================== */
 
-  // Warum die Uhr zwei Stufen hat.
+  // Why the clock has two stages.
   //
-  // Der sichtbare Timer soll ablaufen können und die Aufgabe dann als falsch
-  // werten. Liefe er genau bis zur Zeitschwelle, wäre die Spec-Regel „richtig,
-  // aber zu langsam lässt die Karte stehen“ beseitigt — es gäbe schlicht kein
-  // „zu langsam“ mehr, weil vorher abgebrochen würde. Deshalb zwei Stufen:
+  // The visible timer is supposed to be able to run out and mark the question
+  // wrong. If it ran exactly up to the time threshold, the spec rule "correct
+  // but too slow leaves the card where it is" would be gone — there simply
+  // would be no "too slow" any more, because the question would be cut off
+  // first. Hence two stages:
   //
-  //   0 ─────── Zeitschwelle ─────────── Gesamtfrist
-  //   [ schnell genug: Karte steigt ]
-  //             [ Kulanz: Antwort zählt, Karte bleibt stehen ]
-  //                                      → Zeit um: Karte auf Box 0
+  //   0 ─────── threshold ───────────── deadline
+  //   [ fast enough: card moves up ]
+  //             [ grace: the answer still counts, the card stays put ]
+  //                                      → time up: card back to box 0
   //
-  // Die Gesamtfrist ist das Dreifache der geltenden Schwelle (im Sprachmodus
-  // also der Schwelle samt STT_THRESHOLD_BONUS_MS). Drei ist so gewählt, dass
-  // die Kulanz doppelt so lang ist wie die schnelle Zeit — genug, um in Ruhe
-  // nachzudenken und zu tippen oder zu sprechen, und kurz genug, dass die
-  // Aufgabe nicht ewig stehen bleibt.
+  // The deadline is three times the applicable threshold (in voice mode that
+  // includes STT_THRESHOLD_BONUS_MS). Three is chosen so that the grace period
+  // is twice as long as the fast time — enough to think and type or speak
+  // calmly, and short enough that a question does not sit around forever.
   //
-  // Diese Funktionen entscheiden ausschließlich über Anzeige und Frist. Ob
-  // eine Karte steigt, stehen bleibt oder zurückfällt, entscheidet weiterhin
-  // allein gradeAnswer aus der tatsächlich gemessenen Zeit.
-  var ZEIT_FRIST_FAKTOR = 3;
+  // These functions decide about display and deadline only. Whether a card
+  // moves up, stays or falls back is still decided solely by gradeAnswer from
+  // the actually measured time.
+  var TIME_LIMIT_FACTOR = 3;
 
-  var ZEIT_SCHNELL = 'schnell';
-  var ZEIT_KULANZ = 'kulanz';
-  var ZEIT_ABGELAUFEN = 'abgelaufen';
+  var TIME_FAST = 'fast';
+  var TIME_GRACE = 'grace';
+  var TIME_EXPIRED = 'expired';
 
-  // Eine unbrauchbare Schwelle darf niemals eine Karte kosten: dann gibt es
-  // keine Frist (0) und die Phase bleibt für immer „schnell“.
-  function gueltigeSchwelle(schwelleMs) {
-    var s = Number(schwelleMs);
-    return isFinite(s) && s > 0 ? s : 0;
+  // An unusable threshold must never cost a card: there is then no deadline
+  // (0) and the phase stays "fast" forever.
+  function validThresholdMs(thresholdMs) {
+    var t = Number(thresholdMs);
+    return isFinite(t) && t > 0 ? t : 0;
   }
 
-  function gesamtfristMs(schwelleMs) {
-    return gueltigeSchwelle(schwelleMs) * ZEIT_FRIST_FAKTOR;
+  function deadlineMs(thresholdMs) {
+    return validThresholdMs(thresholdMs) * TIME_LIMIT_FACTOR;
   }
 
-  function zeitPhase(verstrichenMs, schwelleMs) {
-    var s = gueltigeSchwelle(schwelleMs);
-    if (s === 0) return ZEIT_SCHNELL;
-    var v = Number(verstrichenMs);
-    if (!isFinite(v) || v < 0) v = 0;
-    // Die Grenze liegt genau wie in gradeAnswer bei `<=`: exakt auf der
-    // Schwelle gilt noch als schnell.
-    if (v <= s) return ZEIT_SCHNELL;
-    if (v < s * ZEIT_FRIST_FAKTOR) return ZEIT_KULANZ;
-    return ZEIT_ABGELAUFEN;
+  function timePhase(elapsedMs, thresholdMs) {
+    var t = validThresholdMs(thresholdMs);
+    if (t === 0) return TIME_FAST;
+    var e = Number(elapsedMs);
+    if (!isFinite(e) || e < 0) e = 0;
+    // The boundary sits at `<=`, exactly as in gradeAnswer: right on the
+    // threshold still counts as fast.
+    if (e <= t) return TIME_FAST;
+    if (e < t * TIME_LIMIT_FACTOR) return TIME_GRACE;
+    return TIME_EXPIRED;
   }
 
-  // Alles, was das Zeichnen des Balkens braucht — ohne einen einzigen
-  // DOM-Zugriff. `anteil` ist der verbleibende Teil der Gesamtfrist (1 → 0),
-  // `schwellenAnteil` die Stelle, an der die Kulanz beginnt; dort steht die
-  // Marke im Balken.
-  function zeitAnzeige(verstrichenMs, schwelleMs) {
-    var s = gueltigeSchwelle(schwelleMs);
-    var gesamt = s * ZEIT_FRIST_FAKTOR;
-    var v = Number(verstrichenMs);
-    if (!isFinite(v) || v < 0) v = 0;
-    var rest = gesamt > 0 ? Math.max(0, gesamt - v) : 0;
+  // Everything the bar needs in order to be drawn — without a single DOM
+  // access. `fraction` is the remaining part of the deadline (1 → 0),
+  // `thresholdFraction` is where the grace period starts; the mark sits there.
+  function timeDisplay(elapsedMs, thresholdMs) {
+    var t = validThresholdMs(thresholdMs);
+    var total = t * TIME_LIMIT_FACTOR;
+    var e = Number(elapsedMs);
+    if (!isFinite(e) || e < 0) e = 0;
+    var remaining = total > 0 ? Math.max(0, total - e) : 0;
     return {
-      phase: zeitPhase(v, s),
-      anteil: gesamt > 0 ? Math.max(0, Math.min(1, rest / gesamt)) : 1,
-      restMs: rest,
-      gesamtMs: gesamt,
-      schwellenAnteil: gesamt > 0 ? (gesamt - s) / gesamt : 1
+      phase: timePhase(e, t),
+      fraction: total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 1,
+      remainingMs: remaining,
+      totalMs: total,
+      thresholdFraction: total > 0 ? (total - t) / total : 1
     };
   }
 
   /* ===================================================================
-     Abschnitt 4 — Anzeigezustand der Spracheingabe
+     Section 4 — display state of the speech input
      =================================================================== */
 
-  // Die Statusanzeige des Mikrofons hat genau eine schwierige Stelle: die
-  // Rangfolge der Zustände. Sie liegt deshalb hier als reine Funktion und ist
-  // ohne Browser prüfbar.
+  // The microphone status display has exactly one tricky part: the precedence
+  // of the states. It therefore lives here as a pure function and is testable
+  // without a browser.
   //
-  // Sie entscheidet ausschließlich darüber, was angezeigt wird — nie darüber,
-  // ob eine Karte gewertet wird, und nie über die Zeitmessung.
-  var MIK_AUS = 'aus';                  // Mikrofon aus oder nicht verfügbar
-  var MIK_PAUSIERT = 'pausiert';        // Menü offen, Fehleranzeige, nichts zu antworten
-  var MIK_VORLESEN = 'vorlesen';        // Aufgabe wird gesprochen — jetzt nicht sprechen
-  var MIK_STARTET = 'startet';          // Zuhören angefordert, Beginn noch nicht bestätigt
-  var MIK_BEREIT = 'bereit';            // Mikrofon ist offen — jetzt sprechen
-  var MIK_HOERT = 'hoert';              // es wird gerade gesprochen
-  var MIK_VERARBEITET = 'verarbeitet';  // nach speechend, vor dem Ergebnis
+  // It decides only what is shown — never whether a card is graded, and never
+  // about time measurement.
+  var MIC_OFF = 'off';                // microphone off or unavailable
+  var MIC_PAUSED = 'paused';          // menu open, error shown, nothing to answer
+  var MIC_READING = 'reading';        // question is being read out — do not speak now
+  var MIC_STARTING = 'starting';      // listening requested, start not yet confirmed
+  var MIC_READY = 'ready';            // microphone is open — speak now
+  var MIC_HEARING = 'hearing';        // someone is speaking right now
+  var MIC_PROCESSING = 'processing';  // after speechend, before the result
 
-  // Die Reihenfolge ist Absicht: was das Kind vom Sprechen abhält, gilt vor
-  // dem, was am Mikrofon gerade passiert. Sonst stünde „Jetzt sprechen“ da,
-  // während die Aufgabe noch vorgelesen wird.
-  function mikrofonZustand(lage) {
-    var l = lage || {};
-    if (!l.aktiv) return MIK_AUS;
-    if (l.pausiert) return MIK_PAUSIERT;
-    if (l.wirdVorgelesen) return MIK_VORLESEN;
-    if (l.verarbeitet) return MIK_VERARBEITET;
-    if (l.spricht) return MIK_HOERT;
-    if (l.gestartet) return MIK_BEREIT;
-    return MIK_STARTET;
+  // The order is deliberate: whatever keeps the child from speaking wins over
+  // whatever the microphone is currently doing. Otherwise "Jetzt sprechen"
+  // would show while the question is still being read out.
+  function micState(situation) {
+    var s = situation || {};
+    if (!s.active) return MIC_OFF;
+    if (s.paused) return MIC_PAUSED;
+    if (s.reading) return MIC_READING;
+    if (s.processing) return MIC_PROCESSING;
+    if (s.speaking) return MIC_HEARING;
+    if (s.started) return MIC_READY;
+    return MIC_STARTING;
   }
 
   /* ===================================================================
-     Abschnitt 5 — Speicherschicht
+     Section 5 — storage layer
      =================================================================== */
 
   var STORAGE_KEY = 'mathelerner.v1';
@@ -367,33 +367,33 @@
     if (parsed.version !== STATE_VERSION) return defaultState();
     if (!parsed.profiles || typeof parsed.profiles !== 'object') return defaultState();
 
-    // Strukturell kaputte Profile verwerfen, statt die Seite daran sterben zu
-    // lassen: ein Profil ohne Karten ist unbrauchbar.
-    var gesund = {};
+    // Discard structurally broken profiles instead of letting the page die on
+    // them: a profile without cards is useless.
+    var healthy = {};
     var ids = Object.keys(parsed.profiles);
     for (var i = 0; i < ids.length; i++) {
       var pr = parsed.profiles[ids[i]];
       if (pr && typeof pr === 'object' && pr.cards && typeof pr.cards === 'object' &&
           pr.settings && typeof pr.settings === 'object' &&
           pr.stats && typeof pr.stats === 'object') {
-        gesund[ids[i]] = pr;
+        healthy[ids[i]] = pr;
       }
     }
-    var uebrig = Object.keys(gesund);
-    var aktiv = parsed.activeProfile;
-    if (uebrig.indexOf(aktiv) === -1) aktiv = uebrig.length > 0 ? uebrig[0] : null;
-    return { version: STATE_VERSION, activeProfile: aktiv, profiles: gesund };
+    var remaining = Object.keys(healthy);
+    var active = parsed.activeProfile;
+    if (remaining.indexOf(active) === -1) active = remaining.length > 0 ? remaining[0] : null;
+    return { version: STATE_VERSION, activeProfile: active, profiles: healthy };
   }
 
-  // Liefert true, wenn geschrieben wurde. Ein fehlgeschlagener Schreibvorgang
-  // (privater Modus, Speicher voll) muss sichtbar werden dürfen.
+  // Returns true when the write went through. A failed write (private mode,
+  // storage full) has to be allowed to become visible.
   function saveState(storage, state) {
     var raw = JSON.stringify(state);
     try {
       storage.setItem(STORAGE_KEY, raw);
       return true;
     } catch (e) {
-      return false;   // Speicher voll oder gesperrt
+      return false;   // storage full or blocked
     }
   }
 
@@ -435,79 +435,79 @@
   }
 
   /* ===================================================================
-     Abschnitt 6 — Fortschrittsanzeige
+     Section 6 — progress display
      =================================================================== */
 
-  // Die Boxnummer allein sagt niemandem etwas. Für die Anzeige bekommt jede
-  // Box einen Namen; der Index ist die Boxnummer.
-  var BOX_NAMEN = ['neu', 'geübt', 'fast sicher', 'gemeistert'];
+  // The box number alone tells nobody anything. For the display every box gets
+  // a name; the index is the box number. German, because this is shown.
+  var BOX_NAMES = ['neu', 'geübt', 'fast sicher', 'gemeistert'];
 
-  // Wie viele Karten in welcher Box stehen — Index ist die Boxnummer.
-  function boxVerteilung(profile) {
-    var zaehler = [0, 0, 0, 0];
+  // How many cards sit in which box — the index is the box number.
+  function boxDistribution(profile) {
+    var counts = [0, 0, 0, 0];
     for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
       var card = profile.cards[ALL_CARD_KEYS[i]];
-      if (card) zaehler[begrenzteBox(card.box)]++;
+      if (card) counts[clampBox(card.box)]++;
     }
-    return zaehler;
+    return counts;
   }
 
-  // Kaputte oder künftige Boxwerte dürfen die Anzeige nicht sprengen.
-  function begrenzteBox(box) {
+  // Broken or future box values must not blow up the display.
+  function clampBox(box) {
     var b = Math.round(Number(box));
     if (!isFinite(b) || b < 0) return 0;
     return Math.min(b, BOX_MASTERED);
   }
 
-  // Deutsche Dezimalschreibweise, nie eine negative Zeit.
-  function zeitText(ms) {
+  // German decimal notation, never a negative time.
+  function timeText(ms) {
     if (ms === null || ms === undefined || isNaN(ms)) return null;
     return (Math.max(0, ms) / 1000).toFixed(1).replace('.', ',') + ' s';
   }
 
-  // Wann die gemeisterte Karte wieder drankommt. Für alle anderen Boxen gibt
-  // es keinen Auffrischungstermin — dort ist das Ergebnis null.
-  function auffrischungText(card, now) {
-    if (begrenzteBox(card.box) !== BOX_MASTERED) return null;
+  // When a mastered card comes up again. For every other box there is no
+  // refresh date — the result is null there.
+  function refreshText(card, now) {
+    if (clampBox(card.box) !== BOX_MASTERED) return null;
     if (!card.due || card.due <= 0) return null;
     if (card.due <= now) return 'Auffrischung fällig';
-    var tage = Math.ceil((card.due - now) / DAY_MS);
-    return 'Auffrischung in ' + tage + (tage === 1 ? ' Tag' : ' Tagen');
+    var days = Math.ceil((card.due - now) / DAY_MS);
+    return 'Auffrischung in ' + days + (days === 1 ? ' Tag' : ' Tagen');
   }
 
-  function trefferText(card) {
+  function scoreText(card) {
     if (!card.seen) return 'noch nicht drangekommen';
     return card.correct + ' von ' + card.seen + ' richtig';
   }
 
-  // Eine Karte, fertig für die Anzeige: Boxnummer, Name, ob eine Auffrischung
-  // ansteht, und ein Satz, der alles Wissenswerte nennt.
-  function kartenAnsicht(card, key, now) {
+  // One card, ready for display: box number, name, whether a refresh is due,
+  // and a sentence that states everything worth knowing.
+  function cardView(card, key, now) {
     var ab = parseCardKey(key);
-    var box = begrenzteBox(card.box);
-    var auffrischung = auffrischungText(card, now);
-    var teile = [ab.a + ' × ' + ab.b, BOX_NAMEN[box] + ' (Box ' + box + ')'];
-    var zeit = zeitText(card.bestMs);
-    if (zeit !== null) teile.push('beste Zeit ' + zeit);
-    teile.push(trefferText(card));
-    if (auffrischung !== null) teile.push(auffrischung);
+    var box = clampBox(card.box);
+    var refresh = refreshText(card, now);
+    var parts = [ab.a + ' × ' + ab.b, BOX_NAMES[box] + ' (Box ' + box + ')'];
+    var time = timeText(card.bestMs);
+    if (time !== null) parts.push('beste Zeit ' + time);
+    parts.push(scoreText(card));
+    if (refresh !== null) parts.push(refresh);
     return {
       key: key, a: ab.a, b: ab.b,
-      box: box, name: BOX_NAMEN[box],
-      faellig: auffrischung === 'Auffrischung fällig',
-      beschreibung: teile.join(' · ')
+      box: box, name: BOX_NAMES[box],
+      refreshDue: refresh === 'Auffrischung fällig',
+      description: parts.join(' · ')
     };
   }
 
-  // Immer alle 100 Karten in fester Reihenfolge — ein Profil, dem eine Karte
-  // fehlt, würde sonst ein Loch ins Raster reißen.
-  function kartenAnsichten(profile, now) {
-    var liste = [];
+  // Always all 100 cards in a fixed order — a profile missing a card would
+  // otherwise tear a hole into the grid.
+  function cardViews(profile, now) {
+    var list = [];
     for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
       var key = ALL_CARD_KEYS[i];
-      liste.push(kartenAnsicht(profile.cards[key] || newCard(), key, now));
+      list.push(cardView(profile.cards[key] || newCard(), key, now));
     }
-    return liste;
+    return list;
   }
 
   return {
@@ -525,25 +525,25 @@
     DEFAULT_THRESHOLD_MS: DEFAULT_THRESHOLD_MS,
     STT_THRESHOLD_BONUS_MS: STT_THRESHOLD_BONUS_MS,
     gradeAnswer: gradeAnswer,
-    ZEIT_FRIST_FAKTOR: ZEIT_FRIST_FAKTOR,
-    ZEIT_SCHNELL: ZEIT_SCHNELL,
-    ZEIT_KULANZ: ZEIT_KULANZ,
-    ZEIT_ABGELAUFEN: ZEIT_ABGELAUFEN,
-    gesamtfristMs: gesamtfristMs,
-    zeitPhase: zeitPhase,
-    zeitAnzeige: zeitAnzeige,
+    TIME_LIMIT_FACTOR: TIME_LIMIT_FACTOR,
+    TIME_FAST: TIME_FAST,
+    TIME_GRACE: TIME_GRACE,
+    TIME_EXPIRED: TIME_EXPIRED,
+    deadlineMs: deadlineMs,
+    timePhase: timePhase,
+    timeDisplay: timeDisplay,
     BOX_WEIGHTS: BOX_WEIGHTS,
     RECENT_MEMORY: RECENT_MEMORY,
     REFRESH_EVERY: REFRESH_EVERY,
     pickNext: pickNext,
-    MIK_AUS: MIK_AUS,
-    MIK_PAUSIERT: MIK_PAUSIERT,
-    MIK_VORLESEN: MIK_VORLESEN,
-    MIK_STARTET: MIK_STARTET,
-    MIK_BEREIT: MIK_BEREIT,
-    MIK_HOERT: MIK_HOERT,
-    MIK_VERARBEITET: MIK_VERARBEITET,
-    mikrofonZustand: mikrofonZustand,
+    MIC_OFF: MIC_OFF,
+    MIC_PAUSED: MIC_PAUSED,
+    MIC_READING: MIC_READING,
+    MIC_STARTING: MIC_STARTING,
+    MIC_READY: MIC_READY,
+    MIC_HEARING: MIC_HEARING,
+    MIC_PROCESSING: MIC_PROCESSING,
+    micState: micState,
     STORAGE_KEY: STORAGE_KEY,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     defaultState: defaultState,
@@ -553,12 +553,12 @@
     createProfile: createProfile,
     deleteProfile: deleteProfile,
     openCount: openCount,
-    BOX_NAMEN: BOX_NAMEN,
-    boxVerteilung: boxVerteilung,
-    zeitText: zeitText,
-    auffrischungText: auffrischungText,
-    trefferText: trefferText,
-    kartenAnsicht: kartenAnsicht,
-    kartenAnsichten: kartenAnsichten
+    BOX_NAMES: BOX_NAMES,
+    boxDistribution: boxDistribution,
+    timeText: timeText,
+    refreshText: refreshText,
+    scoreText: scoreText,
+    cardView: cardView,
+    cardViews: cardViews
   };
 });

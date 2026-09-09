@@ -284,3 +284,31 @@ Ruling 26: Rückmeldung als vollflächiges Aufleuchten mit Zeichen, nicht als
     wiederzuverwenden. An derselben Stelle im Bild dürfen dieselben zwei
     Farben nicht zweierlei heißen; der Mikrofonstatus belegt Grün ohnehin
     schon mit "jetzt sprechen".
+
+Ruling 27: Der gesamte Code ist Englisch, nur die sichtbaren Texte bleiben
+    Deutsch (Nutzeranweisung vom 2026-09-09).
+  — Betroffen sind Bezeichner, Kommentare, Testnamen, DOM-IDs, CSS-Klassen und
+    Konsolenausgaben. Unangetastet bleibt alles, was im Browser gelesen wird:
+    die Zeichenketten in `index.html` und die Rückgabewerte von `BOX_NAMES`,
+    `timeText`, `refreshText`, `scoreText` und `cardView().description`.
+  — Die Zahlwörter des Parsers (`ONES`, `TEENS`, `TENS`, `spellGerman`) sind
+    Fachdaten der deutschen Spracherkennung und bleiben natürlich Deutsch.
+  — Ältere Einträge in diesem Protokoll nennen noch die alten Namen. Die
+    Umbenennung im Überblick:
+    `ZEIT_FRIST_FAKTOR`→`TIME_LIMIT_FACTOR`, `gesamtfristMs`→`deadlineMs`,
+    `zeitPhase`→`timePhase`, `zeitAnzeige`→`timeDisplay`,
+    `ZEIT_SCHNELL/KULANZ/ABGELAUFEN`→`TIME_FAST/GRACE/EXPIRED`,
+    `mikrofonZustand`→`micState`, `MIK_*`→`MIC_*`,
+    `BOX_NAMEN`→`BOX_NAMES`, `boxVerteilung`→`boxDistribution`,
+    `zeitText`→`timeText`, `auffrischungText`→`refreshText`,
+    `trefferText`→`scoreText`, `kartenAnsicht(en)`→`cardView(s)`;
+    in `index.html`: `zeitLaeuft`→`clockRunning`,
+    `zeitAktualisieren`→`updateTimer`, `zeitNeuStellen`→`rearmDeadline`,
+    `zeitStopp`→`stopClock`, `zeitFristAbgelaufen`→`onDeadlineExpired`,
+    `zuhoerenErwartet`→`shouldListen`, `mikAktualisieren`→`micUpdate`,
+    `mikMelden`→`micReport`, `flash`→`showFlash`, `#blitz`→`#flash`,
+    `#zeitbalken`→`#timerbar`, `#mikrofonstatus`→`#mic-status`,
+    `#kartenraster`→`#card-grid`, `.karte`→`.card`, `.stufe`→`.level`.
+  — Die Testdateien heißen entsprechend `progress.test.js`,
+    `mic-status.test.js` und `time.test.js` (vorher `fortschritt`,
+    `mikrofonstatus`, `zeit`).

@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Einmaleins</title>
-<!-- Tab-Symbol direkt eingebettet: ein Malzeichen auf grüner Kachel in den
-     Farben aus :root (--ok und --bg). Als Data-URI bleibt es bei genau zwei
-     ausgelieferten Dateien, und der Browser fragt nicht mehr nach
-     /favicon.ico. Das „#“ der Farbwerte muss als %23 kodiert sein. -->
+<!-- Tab icon embedded directly: a multiplication sign on a green tile in the
+     colours from :root (--ok and --bg). As a data URI it keeps the app at
+     exactly two shipped files, and the browser stops asking for
+     /favicon.ico. The "#" of the colour values has to be encoded as %23. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232e7d32'/%3E%3Cpath d='M10 10L22 22M22 10L10 22' stroke='%23fbfbfa' stroke-width='5.5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #fbfbfa; --fg: #1a1a1a; --muted: #8a8a85;
     --ok: #2e7d32; --bad: #c62828; --line: #e3e3df;
-    /* Nur für die Kulanzphase des Timers. Grün und Rot sind der Bewertung
-       einer Antwort vorbehalten — ein Timer in denselben Farben hieße an
-       derselben Stelle zweierlei. */
+    /* Only for the grace phase of the timer. Green and red are reserved for
+       grading an answer — a timer in the same colours would mean two
+       different things in the same place. */
     --warn: #a35a00;
   }
   @media (prefers-color-scheme: dark) {
@@ -32,81 +32,81 @@
     justify-content: center; gap: 3vh; padding: 4vh 5vw;
     -webkit-text-size-adjust: 100%;
   }
-  /* Rückmeldung auf die Antwort.
-     Vorher färbte sich 260 ms lang nur die Schrift der Aufgabe um — an genau
-     der Stelle, von der der Blick beim Antworten längst weg ist. Jetzt färbt
-     sich die ganze Fläche und läuft weich zum Hintergrund zurück.
-     Zwei Signale, nicht eines: Farbe UND Zeichen. Wer Grün und Rot schlecht
-     unterscheidet, liest trotzdem ✓ oder ✗ mitten auf dem Bild.
-     Gedämpft, nicht grell: die Spitze liegt bei knapp einem Viertel Deckung,
-     der Rücklauf dauert viermal so lang wie der Anstieg. Ein vollflächig
-     blinkender Hintergrund wäre bei Kindern unangebracht. */
-  #blitz {
+  /* Feedback on the answer.
+     Before, only the colour of the question changed for 260 ms — in exactly
+     the place the eye has long left while answering. Now the whole surface
+     colours up and fades softly back to the background.
+     Two signals, not one: colour AND symbol. Whoever tells green and red
+     apart poorly still reads ✓ or ✗ in the middle of the screen.
+     Muted, not garish: the peak sits at barely a quarter opacity, and the
+     fade-out lasts four times as long as the rise. A full-screen flashing
+     background would be inappropriate for children. */
+  #flash {
     position: fixed; inset: 0; z-index: 5; pointer-events: none;
     display: flex; align-items: center; justify-content: center;
   }
-  #blitz .flaeche {
+  #flash .surface {
     position: absolute; inset: 0; opacity: 0; background: var(--ok);
   }
-  #blitz .zeichen {
+  #flash .symbol {
     position: relative; opacity: 0; line-height: 1; font-weight: 300;
     font-size: clamp(6rem, 30vw, 15rem); color: var(--ok);
   }
-  #blitz.bad .flaeche { background: var(--bad); }
-  #blitz.bad .zeichen { color: var(--bad); }
-  @keyframes blitz-flaeche {
+  #flash.bad .surface { background: var(--bad); }
+  #flash.bad .symbol { color: var(--bad); }
+  @keyframes flash-surface {
     0% { opacity: 0 } 14% { opacity: .22 } 100% { opacity: 0 }
   }
-  @keyframes blitz-zeichen {
+  @keyframes flash-symbol {
     0%   { opacity: 0; transform: scale(.86) }
     16%  { opacity: 1; transform: scale(1) }
     55%  { opacity: .9; transform: scale(1) }
     100% { opacity: 0; transform: scale(1.05) }
   }
-  #blitz.ok .flaeche, #blitz.bad .flaeche { animation: blitz-flaeche .72s ease-out both; }
-  #blitz.ok .zeichen, #blitz.bad .zeichen { animation: blitz-zeichen .72s ease-out both; }
+  #flash.ok .surface, #flash.bad .surface { animation: flash-surface .72s ease-out both; }
+  #flash.ok .symbol, #flash.bad .symbol { animation: flash-symbol .72s ease-out both; }
 
-  /* Ohne Bewegung: dieselbe Aussage, nur ohne Größenwechsel und mit flacherer
-     Spitze — das Aufleuchten soll auch dann nicht als Zucken ankommen. */
-  @keyframes blitz-flaeche-ruhig {
+  /* Without motion: the same statement, only without the size change and with
+     a flatter peak — the flash should not come across as a twitch there. */
+  @keyframes flash-surface-calm {
     0% { opacity: 0 } 30% { opacity: .16 } 100% { opacity: 0 }
   }
-  @keyframes blitz-zeichen-ruhig {
+  @keyframes flash-symbol-calm {
     0% { opacity: 0 } 30% { opacity: .95 } 70% { opacity: .95 } 100% { opacity: 0 }
   }
   @media (prefers-reduced-motion: reduce) {
-    #blitz.ok .flaeche, #blitz.bad .flaeche { animation-name: blitz-flaeche-ruhig; }
-    #blitz.ok .zeichen, #blitz.bad .zeichen { animation-name: blitz-zeichen-ruhig; }
+    #flash.ok .surface, #flash.bad .surface { animation-name: flash-surface-calm; }
+    #flash.ok .symbol, #flash.bad .symbol { animation-name: flash-symbol-calm; }
   }
 
-  /* Der ablaufende Timer. Ein flacher Balken direkt unter der Aufgabe, der von
-     rechts nach links leerläuft. Die Marke sitzt dort, wo die schnelle Zeit
-     endet und die Kulanz beginnt — erreicht der Balken sie, ist die Aufgabe
-     noch zu retten, sie steigt nur keine Box mehr.
-     Auch hier zwei Signale: die Farbe wechselt von grau nach bernstein UND der
-     Balken wird dicker. Ruhig genug, dass er nicht hetzt, und ohne Zahl —
-     ablesbar, ohne zu lesen. */
-  #zeitbalken { position: relative; width: min(22rem, 80vw); height: 1rem; flex: none; }
-  #zeitbahn, #zeitfuellung {
+  /* The running timer. A flat bar right below the question that empties from
+     right to left. The mark sits where the fast time ends and the grace period
+     begins — once the bar reaches it the question can still be saved, it just
+     no longer moves up a box.
+     Two signals here as well: the colour changes from grey to amber AND the
+     bar grows thicker. Calm enough not to rush, and without a number —
+     readable without reading. */
+  #timerbar { position: relative; width: min(22rem, 80vw); height: 1rem; flex: none; }
+  #timer-track, #timer-fill {
     position: absolute; top: 50%; left: 0;
     border-radius: 999px; transform: translateY(-50%);
   }
-  #zeitbahn { right: 0; height: .3rem; background: var(--line); }
-  #zeitfuellung {
+  #timer-track { right: 0; height: .3rem; background: var(--line); }
+  #timer-fill {
     width: 100%; height: .3rem; background: var(--muted);
     transition: height .25s ease, background-color .25s ease;
   }
-  #zeitbalken.kulanz #zeitfuellung { height: .62rem; background: var(--warn); }
-  /* Steht die Uhr — die Aufgabe wird gerade vorgelesen, das Menü ist offen,
-     die Auflösung wartet auf Bestätigung —, verschwindet die Füllung in der
-     Bahn. Der Balken bleibt stehen, damit nichts springt, sagt aber nichts. */
-  #zeitbalken.ruht #zeitfuellung { background: var(--line); height: .3rem; }
-  #zeitmarke {
+  #timerbar.grace #timer-fill { height: .62rem; background: var(--warn); }
+  /* When the clock stands still — the question is being read out, the menu is
+     open, the solution waits for acknowledgement — the fill disappears into
+     the track. The bar stays in place so that nothing jumps, but says nothing. */
+  #timerbar.idle #timer-fill { background: var(--line); height: .3rem; }
+  #timer-mark {
     position: absolute; top: 50%; left: 66.667%; width: 2px; height: .78rem;
     transform: translate(-50%, -50%); border-radius: 1px; background: var(--bg);
   }
   @media (prefers-reduced-motion: reduce) {
-    #zeitfuellung { transition: none; }
+    #timer-fill { transition: none; }
   }
 
   #question {
@@ -134,78 +134,78 @@
   #confirm:active { color: var(--fg); border-color: var(--fg); }
   #feedback { min-height: 1.6em; font-size: 1.1rem; color: var(--muted); text-align: center; }
 
-  /* Mikrofon-Statusanzeige. Ein einziges Objekt — ein fünfteiliger Pegel —
-     trägt alle Zustände über Form, Bewegung und Farbe; die Wörter stützen ihn
-     nur. Ein Kind muss aus zwei Metern erkennen, ob es sprechen darf, ohne zu
-     lesen. Kein Rahmen, kein Schatten: die Seite hat sonst auch keine.
-     Die Höhe ist fest, damit kein Zustandswechsel die Aufgabe verschiebt. */
-  #mikrofonstatus {
+  /* Microphone status display. A single object — a five-part level meter —
+     carries every state through shape, motion and colour; the words only
+     support it. A child has to recognise from two metres away whether it may
+     speak, without reading. No frame, no shadow: the page has none elsewhere
+     either. The height is fixed so that no state change shifts the question. */
+  #mic-status {
     display: flex; align-items: center; gap: .85rem;
     height: 3.4rem; color: var(--muted);
   }
-  #mikrofonpegel { display: flex; align-items: center; gap: .3rem; flex: none; }
-  #mikrofonpegel i {
+  #mic-level { display: flex; align-items: center; gap: .3rem; flex: none; }
+  #mic-level i {
     display: block; width: .34rem; height: 2.1rem; border-radius: .17rem;
     background: currentColor; opacity: .5;
     transform: scaleY(.28); transform-origin: center;
   }
-  #mikrofontexte { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
-  #mikrofonzustand { font-size: 1.25rem; line-height: 1.25; }
-  #mikrofongehoert {
+  #mic-texts { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+  #mic-state { font-size: 1.25rem; line-height: 1.25; }
+  #mic-heard {
     font-size: .95rem; line-height: 1.25; min-height: 1.25em; color: var(--muted);
-    /* So breit, dass ein ausgesprochenes „siebenundzwanzig“ ganz dasteht, und
-       schmal genug, dass die Zeile auf einem Handy nicht aus dem Rand läuft. */
+    /* Wide enough that a spelled-out „siebenundzwanzig“ fits completely, and
+       narrow enough that the line does not run off the edge on a phone. */
     max-width: min(30ch, 68vw);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  /* Grün heißt sprechen, Rot heißt danebengegangen, Grau heißt warten. */
-  #mikrofonstatus.bereit, #mikrofonstatus.hoert { color: var(--ok); }
-  #mikrofonstatus.verstanden { color: var(--fg); }
-  #mikrofonstatus.fehler { color: var(--bad); }
+  /* Green means speak, red means it went wrong, grey means wait. */
+  #mic-status.ready, #mic-status.hearing { color: var(--ok); }
+  #mic-status.understood { color: var(--fg); }
+  #mic-status.error { color: var(--bad); }
 
-  @keyframes mik-atem  { 0%, 100% { transform: scaleY(.28); opacity: .4 }
-                         50%      { transform: scaleY(.55); opacity: 1 } }
-  @keyframes mik-pegel { 0%, 100% { transform: scaleY(.24); opacity: .55 }
-                         50%      { transform: scaleY(1);   opacity: 1 } }
-  @keyframes mik-welle { 0%, 55%, 100% { transform: scaleY(.24); opacity: .35 }
-                         25%           { transform: scaleY(.78); opacity: 1 } }
+  @keyframes mic-breathe { 0%, 100% { transform: scaleY(.28); opacity: .4 }
+                           50%      { transform: scaleY(.55); opacity: 1 } }
+  @keyframes mic-bars    { 0%, 100% { transform: scaleY(.24); opacity: .55 }
+                           50%      { transform: scaleY(1);   opacity: 1 } }
+  @keyframes mic-wave    { 0%, 55%, 100% { transform: scaleY(.24); opacity: .35 }
+                           25%           { transform: scaleY(.78); opacity: 1 } }
 
-  /* Bereit: ein ruhiger, gleichmäßiger Atem — angeschaltet, aber still. */
-  #mikrofonstatus.bereit i { animation: mik-atem 2.2s ease-in-out infinite; }
-  /* Hört: die Balken tanzen. Unterschiedliche Dauern statt Verzögerungen,
-     damit sie nie wieder gleichlaufen und es lebendig statt getaktet wirkt. */
-  #mikrofonstatus.hoert i { animation: mik-pegel .6s ease-in-out infinite; }
-  #mikrofonstatus.hoert i:nth-child(1) { animation-duration: .52s; }
-  #mikrofonstatus.hoert i:nth-child(2) { animation-duration: .79s; }
-  #mikrofonstatus.hoert i:nth-child(3) { animation-duration: .43s; }
-  #mikrofonstatus.hoert i:nth-child(4) { animation-duration: .67s; }
-  #mikrofonstatus.hoert i:nth-child(5) { animation-duration: .57s; }
-  /* Verarbeitet: eine Welle läuft durch — Arbeit, kein Zuhören mehr. */
-  #mikrofonstatus.verarbeitet i { animation: mik-welle 1.15s ease-in-out infinite; }
-  #mikrofonstatus.verarbeitet i:nth-child(2) { animation-delay: .12s; }
-  #mikrofonstatus.verarbeitet i:nth-child(3) { animation-delay: .24s; }
-  #mikrofonstatus.verarbeitet i:nth-child(4) { animation-delay: .36s; }
-  #mikrofonstatus.verarbeitet i:nth-child(5) { animation-delay: .48s; }
-  /* Angekommen: alle Balken stehen voll. Fehler: alle liegen flach. */
-  #mikrofonstatus.verstanden i { transform: scaleY(1); opacity: 1; }
-  #mikrofonstatus.fehler i { transform: scaleY(.28); opacity: .9; }
+  /* Ready: a calm, even breath — switched on, but quiet. */
+  #mic-status.ready i { animation: mic-breathe 2.2s ease-in-out infinite; }
+  /* Hearing: the bars dance. Different durations instead of delays, so that
+     they never run in sync again and it looks alive instead of metered. */
+  #mic-status.hearing i { animation: mic-bars .6s ease-in-out infinite; }
+  #mic-status.hearing i:nth-child(1) { animation-duration: .52s; }
+  #mic-status.hearing i:nth-child(2) { animation-duration: .79s; }
+  #mic-status.hearing i:nth-child(3) { animation-duration: .43s; }
+  #mic-status.hearing i:nth-child(4) { animation-duration: .67s; }
+  #mic-status.hearing i:nth-child(5) { animation-duration: .57s; }
+  /* Processing: a wave runs through — work, no longer listening. */
+  #mic-status.processing i { animation: mic-wave 1.15s ease-in-out infinite; }
+  #mic-status.processing i:nth-child(2) { animation-delay: .12s; }
+  #mic-status.processing i:nth-child(3) { animation-delay: .24s; }
+  #mic-status.processing i:nth-child(4) { animation-delay: .36s; }
+  #mic-status.processing i:nth-child(5) { animation-delay: .48s; }
+  /* Arrived: all bars stand full. Error: all of them lie flat. */
+  #mic-status.understood i { transform: scaleY(1); opacity: 1; }
+  #mic-status.error i { transform: scaleY(.28); opacity: .9; }
 
   @media (prefers-reduced-motion: reduce) {
-    /* Ohne Bewegung müssen die Formen die Zustände tragen. */
-    #mikrofonpegel i { animation: none !important; }
-    #mikrofonstatus.bereit i { transform: scaleY(.55); opacity: 1; }
-    #mikrofonstatus.hoert i { opacity: 1; }
-    #mikrofonstatus.hoert i:nth-child(1) { transform: scaleY(.42); }
-    #mikrofonstatus.hoert i:nth-child(2) { transform: scaleY(.86); }
-    #mikrofonstatus.hoert i:nth-child(3) { transform: scaleY(.55); }
-    #mikrofonstatus.hoert i:nth-child(4) { transform: scaleY(1); }
-    #mikrofonstatus.hoert i:nth-child(5) { transform: scaleY(.6); }
-    #mikrofonstatus.verarbeitet i { opacity: .9; }
-    #mikrofonstatus.verarbeitet i:nth-child(odd) { transform: scaleY(.62); }
+    /* Without motion the shapes have to carry the states. */
+    #mic-level i { animation: none !important; }
+    #mic-status.ready i { transform: scaleY(.55); opacity: 1; }
+    #mic-status.hearing i { opacity: 1; }
+    #mic-status.hearing i:nth-child(1) { transform: scaleY(.42); }
+    #mic-status.hearing i:nth-child(2) { transform: scaleY(.86); }
+    #mic-status.hearing i:nth-child(3) { transform: scaleY(.55); }
+    #mic-status.hearing i:nth-child(4) { transform: scaleY(1); }
+    #mic-status.hearing i:nth-child(5) { transform: scaleY(.6); }
+    #mic-status.processing i { opacity: .9; }
+    #mic-status.processing i:nth-child(odd) { transform: scaleY(.62); }
   }
   #progress { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
-  #speicherwarnung {
+  #storage-warning {
     font-size: .9rem; color: var(--bad); text-align: center; max-width: 32ch;
   }
   #toolbar { position: fixed; top: 1rem; right: 1rem; display: flex; gap: .4rem; }
@@ -220,21 +220,21 @@
     display: flex; flex-direction: column; align-items: center; gap: 3vh;
   }
   #done { text-align: center; max-width: 32ch; }
-  /* Das Menü ist ein Vollbild-Overlay und muss über allem liegen. Der z-index
-     ist nicht schmückend: seit der Timerbalken `position: relative` ist und
-     der Blitz auf z-index 5 liegt, sind beide positioniert und gewännen sonst
-     gegen das nur `fixed` gesetzte Menü — der ablaufende Balken und ein rotes
-     ✗ standen mitten in den Einstellungen. Vor dem Timer gab es im Trainer
-     kein positioniertes Element, deshalb fiel das vorher nicht auf. */
+  /* The menu is a full-screen overlay and has to sit above everything. The
+     z-index is not decoration: ever since the timer bar became
+     `position: relative` and the flash sits at z-index 5, both are positioned
+     and would otherwise win against the menu, which is only `fixed` — the
+     running bar and a red ✗ stood in the middle of the settings. Before the
+     timer there was no positioned element inside the trainer, which is why
+     this did not show up earlier. */
   #menu {
     position: fixed; inset: 0; z-index: 10; background: var(--bg);
     padding: 6vh 5vw; overflow: auto;
     display: flex; flex-direction: column; gap: 1.4rem; align-items: flex-start;
   }
-  /* Das Menü ist eine scrollende Spalte. Ohne dieses `flex: none` staucht
-     Flexbox hohe Kinder zusammen, sobald der Inhalt länger wird als der
-     Bildschirm — das Aufgabenraster war so auf ein Drittel seiner Höhe
-     gequetscht und abgeschnitten. */
+  /* The menu is a scrolling column. Without this `flex: none` flexbox squashes
+     tall children as soon as the content grows longer than the screen — the
+     question grid was squeezed to a third of its height and cut off that way. */
   #menu > * { flex: none; }
   #menu h2 { font-size: 1rem; font-weight: 600; margin: 0; }
   #menu label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: .3rem; }
@@ -253,76 +253,75 @@
   #stats table { border-collapse: collapse; margin-top: .5rem; }
   #stats td { padding: .1rem .8rem .1rem 0; font-variant-numeric: tabular-nums; }
 
-  /* Boxstufen. Eine Karte ist ein graues Gefäß, das sich mit jedem Treffer
-     weiter füllt — den Unterschied trägt der Füllstand, nicht die Farbe.
-     Wer Grün nicht von Grau unterscheiden kann, sieht ihn trotzdem: 0, 38,
-     70, 100 Prozent sind vier verschiedene Formen, und die gemeisterte Karte
-     trägt zusätzlich ein Zeichen.
-     Die Regeln hängen an #menu, sonst gewinnt `#menu button` mit seiner
-     `background`- und `border`-Kurzform gegen sie. */
-  #menu .stufe {
+  /* Box levels. A card is a grey vessel that fills up further with every hit —
+     the difference is carried by the fill level, not by the colour. Whoever
+     cannot tell green from grey still sees it: 0, 38, 70, 100 per cent are
+     four different shapes, and the mastered card additionally carries a symbol.
+     The rules hang off #menu, otherwise `#menu button` wins against them with
+     its `background` and `border` shorthands. */
+  #menu .level {
     position: relative; flex: none; overflow: hidden;
     width: 1.5rem; height: 1.5rem;
     border: 1px solid var(--line); border-radius: .28rem;
     background: var(--line);
   }
-  #menu .stufe .fuellung {
+  #menu .level .fill {
     position: absolute; left: 0; right: 0; bottom: 0; background: var(--ok);
   }
-  #menu .stufe-0 .fuellung { height: 0; }
-  #menu .stufe-1 .fuellung { height: 38%; opacity: .45; }
-  #menu .stufe-2 .fuellung { height: 70%; opacity: .72; }
-  #menu .stufe-3 .fuellung { height: 100%; opacity: 1; }
-  #menu .stufe .zeichen {
+  #menu .level-0 .fill { height: 0; }
+  #menu .level-1 .fill { height: 38%; opacity: .45; }
+  #menu .level-2 .fill { height: 70%; opacity: .72; }
+  #menu .level-3 .fill { height: 100%; opacity: 1; }
+  #menu .level .symbol {
     position: absolute; inset: 0; display: flex;
     align-items: center; justify-content: center;
     color: var(--bg); font-size: .8em; line-height: 1;
   }
 
-  #boxlegende {
+  #box-legend {
     list-style: none; margin: 0; padding: 0; width: 100%; max-width: 34rem;
     display: flex; flex-direction: column; gap: .95rem; font-size: .9rem;
   }
-  #boxlegende li { display: flex; gap: .65rem; align-items: flex-start; }
-  #boxlegende .stufe { margin-top: .15rem; }
-  #boxlegende .text { flex: 1; min-width: 0; }
-  #boxlegende .kopf { display: flex; gap: .6rem; justify-content: space-between; }
-  #boxlegende .name { color: var(--fg); font-weight: 600; }
-  #boxlegende .anzahl {
+  #box-legend li { display: flex; gap: .65rem; align-items: flex-start; }
+  #box-legend .level { margin-top: .15rem; }
+  #box-legend .text { flex: 1; min-width: 0; }
+  #box-legend .head { display: flex; gap: .6rem; justify-content: space-between; }
+  #box-legend .name { color: var(--fg); font-weight: 600; }
+  #box-legend .count {
     color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums;
   }
-  #boxlegende .erklaerung { color: var(--muted); line-height: 1.45; }
-  #boxregeln { font-size: .9rem; color: var(--muted); line-height: 1.6; max-width: 46ch; }
+  #box-legend .explanation { color: var(--muted); line-height: 1.45; }
+  #box-rules { font-size: .9rem; color: var(--muted); line-height: 1.6; max-width: 46ch; }
 
-  /* Das Raster: Zeile = erster Faktor, Spalte = zweiter Faktor. Feste
-     Tabellenbreite, damit auch auf 360 px alle elf Spalten hineinpassen. */
-  #kartenraster { width: 100%; max-width: 24rem; overflow-x: auto; }
-  #kartenraster table {
+  /* The grid: row = first factor, column = second factor. Fixed table width so
+     that all eleven columns fit even at 360 px. */
+  #card-grid { width: 100%; max-width: 24rem; overflow-x: auto; }
+  #card-grid table {
     width: 100%; table-layout: fixed;
     border-collapse: separate; border-spacing: 2px;
   }
-  #kartenraster th {
+  #card-grid th {
     padding: 0; text-align: center; font-weight: 400; font-size: .72rem;
     color: var(--muted); font-variant-numeric: tabular-nums;
   }
-  #kartenraster thead th:first-child { width: 1.4rem; }
-  #kartenraster td { padding: 0; }
-  /* Quadratisch über den Polster-Trick, nicht über `aspect-ratio`: in einer
-     Tabellenzelle mit `table-layout: fixed` ist die Breite beim Berechnen der
-     Höhe noch unbestimmt, und Chrome fällt dann auf die Inhaltshöhe zurück
-     (gemessen: 27,8 × 24 px statt quadratisch). Das prozentuale Polster
-     bezieht sich dagegen auf die Breite der Zelle. Die 2 px sind der Rahmen —
-     bei `box-sizing: border-box` zählt er zur Höhe. */
-  #menu #kartenraster .karte {
+  #card-grid thead th:first-child { width: 1.4rem; }
+  #card-grid td { padding: 0; }
+  /* Square via the padding trick, not via `aspect-ratio`: inside a table cell
+     with `table-layout: fixed` the width is still undetermined while the
+     height is computed, and Chrome then falls back to the content height
+     (measured: 27.8 × 24 px instead of square). The percentage padding, by
+     contrast, refers to the width of the cell. The 2 px are the border — with
+     `box-sizing: border-box` it counts towards the height. */
+  #menu #card-grid .card {
     display: block; width: 100%; height: 0; padding: 0 0 calc(100% - 2px);
     font-size: .78rem; cursor: pointer;
   }
-  #menu #kartenraster .karte.gewaehlt { outline: 2px solid var(--fg); outline-offset: 1px; }
-  #kartendetail {
+  #menu #card-grid .card.selected { outline: 2px solid var(--fg); outline-offset: 1px; }
+  #card-detail {
     font-size: .9rem; color: var(--muted); line-height: 1.5;
     min-height: 3em; max-width: 46ch;
   }
-  #kartendetail.aktiv { color: var(--fg); }
+  #card-detail.active { color: var(--fg); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -357,29 +356,29 @@
   <div id="stats"></div>
 
   <h2>Alle 100 Aufgaben</h2>
-  <ul id="boxlegende"></ul>
-  <p id="boxregeln"></p>
-  <div id="kartenraster"></div>
-  <p id="kartendetail" aria-live="polite"></p>
+  <ul id="box-legend"></ul>
+  <p id="box-rules"></p>
+  <div id="card-grid"></div>
+  <p id="card-detail" aria-live="polite"></p>
 
   <button id="menu-close">Zurück zum Üben</button>
 </section>
 
 <main id="trainer">
   <div id="question" aria-live="polite">&nbsp;</div>
-  <!-- Der Timer ist reine Anzeige: aria-hidden, damit die Vorlesehilfe nicht
-       bei jeder Bildwiederholung dazwischenredet. Was zählt, sagt der Text in
+  <!-- The timer is pure display: aria-hidden, so that the screen reader does
+       not interrupt on every repaint. What counts is said by the text in
        #feedback. -->
-  <div id="zeitbalken" class="ruht" aria-hidden="true">
-    <span id="zeitbahn"></span>
-    <span id="zeitfuellung"></span>
-    <span id="zeitmarke"></span>
+  <div id="timerbar" class="idle" aria-hidden="true">
+    <span id="timer-track"></span>
+    <span id="timer-fill"></span>
+    <span id="timer-mark"></span>
   </div>
-  <div id="mikrofonstatus" hidden>
-    <span id="mikrofonpegel" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-    <span id="mikrofontexte">
-      <span id="mikrofonzustand" aria-live="polite"></span>
-      <span id="mikrofongehoert" aria-live="polite"></span>
+  <div id="mic-status" hidden>
+    <span id="mic-level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <span id="mic-texts">
+      <span id="mic-state" aria-live="polite"></span>
+      <span id="mic-heard" aria-live="polite"></span>
     </span>
   </div>
   <input id="answer" type="text" inputmode="numeric" autocomplete="off"
@@ -394,13 +393,13 @@
 </div>
 
 <div id="progress"></div>
-<div id="speicherwarnung" hidden></div>
+<div id="storage-warning" hidden></div>
 
-<!-- Das Aufleuchten liegt über allem und fängt nichts ab (pointer-events:
-     none). aria-hidden, weil das Zeichen dasselbe sagt wie #feedback. -->
-<div id="blitz" aria-hidden="true">
-  <span class="flaeche"></span>
-  <span class="zeichen"></span>
+<!-- The flash lies above everything and intercepts nothing (pointer-events:
+     none). aria-hidden, because the symbol says the same as #feedback. -->
+<div id="flash" aria-hidden="true">
+  <span class="surface"></span>
+  <span class="symbol"></span>
 </div>
 
 <script src="logic.js"></script>
@@ -413,16 +412,16 @@
     answer: document.getElementById('answer'),
     confirm: document.getElementById('confirm'),
     feedback: document.getElementById('feedback'),
-    zeitbalken: document.getElementById('zeitbalken'),
-    zeitfuellung: document.getElementById('zeitfuellung'),
-    zeitmarke: document.getElementById('zeitmarke'),
-    blitz: document.getElementById('blitz'),
-    blitzzeichen: document.querySelector('#blitz .zeichen'),
-    mikrofonstatus: document.getElementById('mikrofonstatus'),
-    mikrofonzustand: document.getElementById('mikrofonzustand'),
-    mikrofongehoert: document.getElementById('mikrofongehoert'),
+    timerbar: document.getElementById('timerbar'),
+    timerFill: document.getElementById('timer-fill'),
+    timerMark: document.getElementById('timer-mark'),
+    flash: document.getElementById('flash'),
+    flashSymbol: document.querySelector('#flash .symbol'),
+    micStatus: document.getElementById('mic-status'),
+    micState: document.getElementById('mic-state'),
+    micHeard: document.getElementById('mic-heard'),
     progress: document.getElementById('progress'),
-    speicherwarnung: document.getElementById('speicherwarnung'),
+    storageWarning: document.getElementById('storage-warning'),
     trainer: document.getElementById('trainer'),
     done: document.getElementById('done'),
     freeplay: document.getElementById('freeplay'),
@@ -435,10 +434,10 @@
     threshold: document.getElementById('threshold'),
     menuClose: document.getElementById('menu-close'),
     stats: document.getElementById('stats'),
-    boxlegende: document.getElementById('boxlegende'),
-    boxregeln: document.getElementById('boxregeln'),
-    kartenraster: document.getElementById('kartenraster'),
-    kartendetail: document.getElementById('kartendetail')
+    boxLegend: document.getElementById('box-legend'),
+    boxRules: document.getElementById('box-rules'),
+    cardGrid: document.getElementById('card-grid'),
+    cardDetail: document.getElementById('card-detail')
   };
 
   var state = ML.loadState(window.localStorage);
@@ -455,169 +454,170 @@
     recent: [],
     answered: 0,
     refreshesShown: 0,
-    awaitingAck: false,   // wartet nach einem Fehler auf die Bestätigung
+    awaitingAck: false,    // waits for acknowledgement after a mistake
     freeplay: false,
-    ausFreiemUeben: false,   // aktuelle Karte stammt aus dem freien Weiterüben
-    sitzungGezaehlt: false   // erst die erste Antwort macht daraus eine Sitzung
+    fromFreePlay: false,   // the current card comes from free practice
+    sessionCounted: false  // only the first answer makes this a session
   };
 
-  // Zwei-Schritt-Bestätigung für das Löschen eines Profils.
-  var loeschBestaetigung = false;
+  // Two-step confirmation for deleting a profile.
+  var deleteConfirmPending = false;
 
   function profile() { return state.profiles[state.activeProfile]; }
 
-  var speicherWarnungGezeigt = false;
+  var storageWarningShown = false;
   function persist() {
     var ok = ML.saveState(window.localStorage, state);
-    if (!ok && !speicherWarnungGezeigt) {
-      speicherWarnungGezeigt = true;
-      // Eigenes Element: #feedback wird bei jeder Antwort neu geschrieben und
-      // hätte die Warnung noch im selben Tick überschrieben.
-      el.speicherwarnung.textContent =
+    if (!ok && !storageWarningShown) {
+      storageWarningShown = true;
+      // Its own element: #feedback is rewritten on every answer and would have
+      // overwritten the warning in the very same tick.
+      el.storageWarning.textContent =
         'Achtung: Der Fortschritt kann in diesem Browser nicht gespeichert werden.';
-      el.speicherwarnung.hidden = false;
+      el.storageWarning.hidden = false;
     }
   }
 
   function thresholdMs() { return profile().settings.thresholdMs; }
 
-  // Wie lange das Aufleuchten dauert. Muss mit den beiden CSS-Animationen
-  // übereinstimmen — sie sind auf .72s gestellt.
-  var BLITZ_DAUER_MS = 720;
-  var blitzTimer = null;
+  // How long the flash lasts. Has to match the two CSS animations — they are
+  // set to .72s.
+  var FLASH_DURATION_MS = 720;
+  var flashTimer = null;
 
-  // Die ganze Fläche färbt sich kurz ein und läuft weich zum Hintergrund
-  // zurück; das Zeichen in der Mitte sagt dasselbe noch einmal ohne Farbe.
-  // `art` ist 'ok' oder 'bad'.
-  function flash(art) {
-    if (blitzTimer !== null) clearTimeout(blitzTimer);
-    el.blitz.className = '';
-    el.blitzzeichen.textContent = art === 'ok' ? '✓' : '✗';
-    // Ohne diesen erzwungenen Umbruch startet die Animation bei zwei schnell
-    // aufeinanderfolgenden Antworten nicht neu: die Klasse war im selben Tick
-    // nie wirklich weg, und der Browser sieht keinen Wechsel.
-    void el.blitz.offsetWidth;
-    el.blitz.className = art;
-    blitzTimer = setTimeout(function () {
-      blitzTimer = null;
-      el.blitz.className = '';
-    }, BLITZ_DAUER_MS);
+  // The whole surface colours up briefly and fades softly back to the
+  // background; the symbol in the middle says the same again without colour.
+  // `kind` is 'ok' or 'bad'.
+  function showFlash(kind) {
+    if (flashTimer !== null) clearTimeout(flashTimer);
+    el.flash.className = '';
+    el.flashSymbol.textContent = kind === 'ok' ? '✓' : '✗';
+    // Without this forced reflow the animation does not restart on two answers
+    // in quick succession: the class was never really gone within the same
+    // tick, and the browser sees no change.
+    void el.flash.offsetWidth;
+    el.flash.className = kind;
+    flashTimer = setTimeout(function () {
+      flashTimer = null;
+      el.flash.className = '';
+    }, FLASH_DURATION_MS);
   }
 
-  /* ---------- Sichtbarer Timer und Gesamtfrist ---------- */
+  /* ---------- Visible timer and overall deadline ---------- */
 
-  // Zwei Uhren, aber nur ein Maß: gezeichnet wird je Bildwiederholung, die
-  // Frist hängt an einem eigenen setTimeout. Gerechnet wird an beiden Stellen
-  // aus `Date.now() - session.startedAt` — nie aus der Zahl der Ticks. Im
-  // Hintergrundtab läuft requestAnimationFrame gar nicht und setTimeout wird
-  // gedrosselt; nur echte Zeitstempel überstehen das.
+  // Two clocks, but only one measure: drawing happens per repaint, the
+  // deadline hangs off its own setTimeout. Both places compute from
+  // `Date.now() - session.startedAt` — never from a number of ticks. In a
+  // background tab requestAnimationFrame does not run at all and setTimeout is
+  // throttled; only real timestamps survive that.
   //
-  // Die Anzeige ersetzt die Zeitmessung nicht. Gewertet wird weiterhin allein
-  // die gemessene Zeit über gradeAnswer.
-  var zeit = {
-    basis: 0,          // für welchen session.startedAt gerade gestellt ist
-    frist: null,       // Handle des Fristablaufs
-    bild: null,        // Handle der Zeichenschleife
-    ausgeloest: false  // damit ein Fristablauf genau einmal wirkt
+  // The display does not replace the time measurement. Grading is still done
+  // solely from the measured time via gradeAnswer.
+  var timer = {
+    base: 0,        // which session.startedAt the timer is currently set for
+    deadline: null, // handle of the deadline timeout
+    frame: null,    // handle of the drawing loop
+    fired: false    // so that a deadline takes effect exactly once
   };
 
-  var ruhigeBewegung = typeof window.matchMedia === 'function'
+  var reducedMotion = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
 
-  // Welche Schwelle gerade gilt. Im Sprachmodus zählt der Bonus mit, sonst
-  // liefe der Balken gegen eine andere Zeit, als am Ende gewertet wird.
-  function zeitSchwelleMs() {
+  // Which threshold currently applies. In voice mode the bonus counts, since
+  // otherwise the bar would run against a different time than is graded.
+  function currentThresholdMs() {
     return stt.active ? sttThresholdMs() : thresholdMs();
   }
 
-  // Die eine Frage, ob die Uhr gerade überhaupt laufen darf.
-  // `session.startedAt === 0` heißt „läuft noch nicht" — die Aufgabe wird
-  // gerade vorgelesen. Hinter dem offenen Menü und während der Fehleranzeige
-  // läuft ebenfalls nichts.
-  function zeitLaeuft() {
+  // The single question of whether the clock may run at all right now.
+  // `session.startedAt === 0` means "not running yet" — the question is being
+  // read out. Behind the open menu and during the error display nothing runs
+  // either.
+  function clockRunning() {
     return session.currentKey !== null && !session.awaitingAck
         && el.menu.hidden && session.startedAt !== 0;
   }
 
-  function zeitStopp() {
-    if (zeit.frist !== null) { clearTimeout(zeit.frist); zeit.frist = null; }
-    if (zeit.bild !== null) { window.cancelAnimationFrame(zeit.bild); zeit.bild = null; }
-    zeit.basis = 0;
-    el.zeitbalken.className = 'ruht';
-    el.zeitfuellung.style.width = '100%';
+  function stopClock() {
+    if (timer.deadline !== null) { clearTimeout(timer.deadline); timer.deadline = null; }
+    if (timer.frame !== null) { window.cancelAnimationFrame(timer.frame); timer.frame = null; }
+    timer.base = 0;
+    el.timerbar.className = 'idle';
+    el.timerFill.style.width = '100%';
   }
 
-  function zeitZeichnen() {
-    var a = ML.zeitAnzeige(Date.now() - session.startedAt, zeitSchwelleMs());
-    // Ohne Bewegung springt der Balken in Zwanzigsteln, statt zu gleiten: er
-    // bleibt ablesbar, ohne dauernd zu laufen.
-    var anteil = ruhigeBewegung ? Math.ceil(a.anteil * 20) / 20 : a.anteil;
-    el.zeitfuellung.style.width = (anteil * 100).toFixed(2) + '%';
-    el.zeitbalken.className = a.phase === ML.ZEIT_SCHNELL ? 'schnell' : 'kulanz';
+  function drawTimer() {
+    var d = ML.timeDisplay(Date.now() - session.startedAt, currentThresholdMs());
+    // Without motion the bar jumps in twentieths instead of gliding: it stays
+    // readable without running all the time.
+    var fraction = reducedMotion ? Math.ceil(d.fraction * 20) / 20 : d.fraction;
+    el.timerFill.style.width = (fraction * 100).toFixed(2) + '%';
+    el.timerbar.className = d.phase === ML.TIME_FAST ? 'fast' : 'grace';
   }
 
-  function zeitSchleife() {
-    zeit.bild = null;
-    if (!zeitLaeuft()) return;
-    zeitZeichnen();
-    zeit.bild = window.requestAnimationFrame(zeitSchleife);
+  function timerLoop() {
+    timer.frame = null;
+    if (!clockRunning()) return;
+    drawTimer();
+    timer.frame = window.requestAnimationFrame(timerLoop);
   }
 
-  // Der einzige Weg, den Timer zu stellen. Sie prüft selbst, ob gerade
-  // gemessen wird, und darf deshalb aus jedem Zustandswechsel heraus gerufen
-  // werden — genau dadurch können Anzeige und Wertung nicht auseinanderlaufen.
-  function zeitAktualisieren() {
-    if (!zeitLaeuft()) { zeitStopp(); return; }
-    if (zeit.basis === session.startedAt && zeit.frist !== null) return;   // läuft schon
-    if (zeit.frist !== null) { clearTimeout(zeit.frist); zeit.frist = null; }
-    if (zeit.bild !== null) { window.cancelAnimationFrame(zeit.bild); zeit.bild = null; }
+  // The only way to set the timer. It checks by itself whether measuring is
+  // going on right now and may therefore be called from every state change —
+  // exactly that keeps display and grading from drifting apart.
+  function updateTimer() {
+    if (!clockRunning()) { stopClock(); return; }
+    if (timer.base === session.startedAt && timer.deadline !== null) return;   // already running
+    if (timer.deadline !== null) { clearTimeout(timer.deadline); timer.deadline = null; }
+    if (timer.frame !== null) { window.cancelAnimationFrame(timer.frame); timer.frame = null; }
 
-    var schwelle = zeitSchwelleMs();
-    var gesamt = ML.gesamtfristMs(schwelle);
-    el.zeitmarke.style.left = (ML.zeitAnzeige(0, schwelle).schwellenAnteil * 100) + '%';
-    if (gesamt <= 0) { zeitStopp(); return; }   // unbrauchbare Schwelle: keine Frist
+    var threshold = currentThresholdMs();
+    var total = ML.deadlineMs(threshold);
+    el.timerMark.style.left = (ML.timeDisplay(0, threshold).thresholdFraction * 100) + '%';
+    if (total <= 0) { stopClock(); return; }   // unusable threshold: no deadline
 
-    zeit.basis = session.startedAt;
-    zeit.ausgeloest = false;
-    // Die Frist zählt ab startedAt, nicht ab jetzt: wird mitten in der Aufgabe
-    // neu gestellt — das Mikrofon ändert die geltende Schwelle —, bleibt die
-    // bereits verstrichene Zeit stehen.
-    var rest = gesamt - (Date.now() - session.startedAt);
-    zeit.frist = setTimeout(zeitFristAbgelaufen, Math.max(0, rest));
-    zeitZeichnen();
-    zeit.bild = window.requestAnimationFrame(zeitSchleife);
+    timer.base = session.startedAt;
+    timer.fired = false;
+    // The deadline counts from startedAt, not from now: when it is re-armed in
+    // the middle of a question — the microphone changes the applicable
+    // threshold — the time already elapsed stays elapsed.
+    var remaining = total - (Date.now() - session.startedAt);
+    timer.deadline = setTimeout(onDeadlineExpired, Math.max(0, remaining));
+    drawTimer();
+    timer.frame = window.requestAnimationFrame(timerLoop);
   }
 
-  // Erzwingt ein Neustellen der Frist, ohne die Uhr selbst anzufassen. Nötig,
-  // wenn sich die geltende Schwelle mitten in der Aufgabe ändert.
-  function zeitNeuStellen() {
-    zeit.basis = 0;
-    zeitAktualisieren();
+  // Forces the deadline to be re-armed without touching the clock itself.
+  // Needed when the applicable threshold changes mid-question.
+  function rearmDeadline() {
+    timer.base = 0;
+    updateTimer();
   }
 
-  // Die Frist ist abgelaufen: die Aufgabe gilt als falsch. Gewertet wird
-  // ausschließlich über submitAnswer — es darf keinen zweiten Weg in die
-  // Speicherschicht geben, sonst gibt es zwei Stellen, die eine Karte
-  // verändern, und eine davon wird irgendwann falsch.
-  function zeitFristAbgelaufen() {
-    zeit.frist = null;
-    if (zeit.ausgeloest) return;          // genau einmal
-    if (!zeitLaeuft()) return;            // Menü offen, Fehleranzeige, Vorlesen
-    var schwelle = zeitSchwelleMs();
-    var gesamt = ML.gesamtfristMs(schwelle);
-    if (gesamt <= 0) return;
-    var verstrichen = Date.now() - session.startedAt;
-    if (verstrichen < gesamt) {
-      // Der Timer kam zu früh — etwa weil die geltende Schwelle inzwischen
-      // größer ist. Gewertet wird die echte Zeit, nie der Tick: neu stellen.
-      zeit.frist = setTimeout(zeitFristAbgelaufen, gesamt - verstrichen);
+  // The deadline has expired: the question counts as wrong. Grading happens
+  // exclusively through submitAnswer — there must not be a second route into
+  // the storage layer, otherwise two places change a card and one of them will
+  // eventually be wrong.
+  function onDeadlineExpired() {
+    timer.deadline = null;
+    if (timer.fired) return;             // exactly once
+    if (!clockRunning()) return;         // menu open, error display, reading out
+    var threshold = currentThresholdMs();
+    var total = ML.deadlineMs(threshold);
+    if (total <= 0) return;
+    var elapsed = Date.now() - session.startedAt;
+    if (elapsed < total) {
+      // The timer came too early — for instance because the applicable
+      // threshold has grown meanwhile. The real time is graded, never the
+      // tick: re-arm.
+      timer.deadline = setTimeout(onDeadlineExpired, total - elapsed);
       return;
     }
-    zeit.ausgeloest = true;
-    // Erst schweigen, dann werten: ein danach noch eintreffendes Erkennungs-
-    // ergebnis darf die bereits gewertete Karte nicht ein zweites Mal anfassen.
+    timer.fired = true;
+    // First go silent, then grade: a recognition result arriving afterwards
+    // must not touch the already graded card a second time.
     stopListening();
-    submitAnswer(null, verstrichen, schwelle, true);
+    submitAnswer(null, elapsed, threshold, true);
   }
 
   function render() {
@@ -638,20 +638,20 @@
       el.trainer.hidden = true;
       el.done.hidden = false;
       render();
-      mikAktualisieren();
-      zeitAktualisieren();   // auf dem Abschlussbildschirm läuft keine Frist
+      micUpdate();
+      updateTimer();   // no deadline runs on the completion screen
       return;
     }
-    var ausFreiemUeben = false;
+    var fromFreePlay = false;
     if (key === null) {
-      // Freies Weiterüben: gleichgewichtet aus allen Karten ziehen.
+      // Free practice: draw from all cards with equal weight.
       var all = Object.keys(profile().cards);
       key = all[Math.floor(Math.random() * all.length)];
-      ausFreiemUeben = true;
+      fromFreePlay = true;
     }
 
-    // Nur echte, von pickNext eingeplante Auffrischungen zählen gegen die Quote.
-    if (!ausFreiemUeben && profile().cards[key].box === ML.BOX_MASTERED) {
+    // Only real refreshes scheduled by pickNext count against the quota.
+    if (!fromFreePlay && profile().cards[key].box === ML.BOX_MASTERED) {
       session.refreshesShown++;
     }
 
@@ -660,74 +660,74 @@
     session.expected = ab.a * ab.b;
     session.startedAt = Date.now();
     session.awaitingAck = false;
-    session.ausFreiemUeben = ausFreiemUeben;
+    session.fromFreePlay = fromFreePlay;
 
     el.question.textContent = ab.a + ' × ' + ab.b;
     el.answer.value = '';
     el.feedback.textContent = '';
     el.confirm.textContent = 'OK';
-    // Nicht ins unsichtbare Feld hinter dem offenen Menü fokussieren —
-    // das holte auf dem Handy die Zifferntastatur über das Menü.
+    // Do not focus the invisible field behind the open menu — on a phone that
+    // pulled the numeric keyboard up over the menu.
     if (el.menu.hidden) el.answer.focus();
     render();
 
     if (profile().settings.tts && tts.unlocked) {
-      // Uhr und Mikrofon starten erst, wenn die Aufgabe fertig vorgelesen ist.
+      // Clock and microphone only start once the question has been read out.
       session.startedAt = 0;
-      wirdVorgelesen = true;
+      isReadingAloud = true;
       stopListening();
       speak(ML.spokenQuestion(ab.a, ab.b), function () {
-        wirdVorgelesen = false;
+        isReadingAloud = false;
         if (session.currentKey !== key) {
-          // Die Aufgabe hat inzwischen gewechselt: die Uhr der neuen Aufgabe
-          // darf dieser Rücklauf nicht anfassen. Das Zuhören muss er trotzdem
-          // anwerfen — sonst bleibt das Mikrofon still, weil die Sperre
-          // wirdVorgelesen jeden früheren startListening()-Aufruf abgewiesen hat.
+          // The question has changed meanwhile: this callback must not touch
+          // the clock of the new question. It still has to start listening —
+          // otherwise the microphone stays silent, because the isReadingAloud
+          // lock rejected every earlier startListening() call.
           startListening();
           return;
         }
         session.startedAt = Date.now();
-        zeitAktualisieren();   // erst jetzt läuft der sichtbare Timer los
+        updateTimer();   // only now does the visible timer start
         startListening();
       });
     } else {
-      wirdVorgelesen = false;
+      isReadingAloud = false;
       if (stt.active) startListening();
-      else mikAktualisieren();
+      else micUpdate();
     }
-    // Zuletzt, damit beide Zweige abgedeckt sind: im Vorlese-Zweig steht
-    // startedAt auf 0 und der Balken ruht, sonst läuft er ab hier.
-    zeitAktualisieren();
+    // Last, so that both branches are covered: in the reading branch startedAt
+    // is 0 and the bar rests, otherwise it runs from here on.
+    updateTimer();
   }
 
-  // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
-  // `zeitUm` kommt ausschließlich vom Fristablauf: dann gibt es keinen Wert,
-  // und die Aufgabe ist ohne weitere Prüfung falsch. Der Fristablauf hat
-  // bewusst keinen eigenen Weg in die Speicherschicht, sondern geht hier
-  // durch — es darf nur eine Stelle geben, die eine Karte wertet.
-  function submitAnswer(value, elapsedMs, overrideThresholdMs, zeitUm) {
+  // elapsedMs can be overridden (voice mode measures differently).
+  // `timeUp` comes exclusively from the deadline: there is no value then, and
+  // the question is wrong without further checks. The deadline deliberately
+  // has no route of its own into the storage layer but passes through here —
+  // there must be only one place that grades a card.
+  function submitAnswer(value, elapsedMs, overrideThresholdMs, timeUp) {
     if (session.currentKey === null || session.awaitingAck) return;
-    if (!zeitUm && (value === null || isNaN(value))) return;   // nicht verstanden: nicht werten
+    if (!timeUp && (value === null || isNaN(value))) return;   // not understood: do not grade
 
-    // Ab hier wird gewertet: die Uhr darf nicht daneben weiterlaufen und
-    // gleich noch ein zweites Mal zuschlagen.
-    zeitStopp();
+    // Grading starts here: the clock must not keep running alongside and
+    // strike a second time right away.
+    stopClock();
 
     var elapsed = typeof elapsedMs === 'number'
       ? elapsedMs
       : (session.startedAt === 0 ? 0 : Date.now() - session.startedAt);
-    var correct = !zeitUm && value === session.expected;
+    var correct = !timeUp && value === session.expected;
     var p = profile();
 
-    if (!session.sitzungGezaehlt) {
-      // Eine Sitzung ist laut Spec ein Seitenaufruf MIT mindestens einer Antwort.
+    if (!session.sessionCounted) {
+      // Per spec a session is a page visit WITH at least one answer.
       p.stats.sessions++;
-      session.sitzungGezaehlt = true;
+      session.sessionCounted = true;
     }
 
-    if (session.ausFreiemUeben) {
-      // Freies Weiterüben läuft laut Spec ohne Boxwirkung: die Karte wird
-      // nicht bewertet, es gibt nur die Rückmeldung.
+    if (session.fromFreePlay) {
+      // Per spec free practice runs without any box effect: the card is not
+      // graded, there is only the feedback.
       p.stats.totalAnswers++;
     } else {
       p.cards[session.currentKey] = ML.gradeAnswer(p.cards[session.currentKey], {
@@ -744,22 +744,22 @@
     persist();
 
     if (correct) {
-      flash('ok');
+      showFlash('ok');
       nextQuestion();
     } else {
-      flash('bad');
-      el.feedback.textContent = (zeitUm ? 'Zeit ist um. ' : '') +
+      showFlash('bad');
+      el.feedback.textContent = (timeUp ? 'Zeit ist um. ' : '') +
         'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
       el.confirm.textContent = 'Weiter';
       session.awaitingAck = true;
-      stopListening();   // während der Fehleranzeige nicht zuhören
+      stopListening();   // do not listen while the mistake is shown
       render();
     }
   }
 
-  // Enter und die breite Touch-Fläche tun genau dasselbe — eine Funktion für
-  // beide, damit sie nicht auseinanderlaufen können.
-  function bestaetigen() {
+  // Enter and the wide touch area do exactly the same — one function for both,
+  // so that they cannot drift apart.
+  function confirmAnswer() {
     if (session.awaitingAck) { nextQuestion(); return; }
     var raw = el.answer.value.trim();
     if (!/^\d+$/.test(raw)) return;
@@ -769,12 +769,12 @@
   el.answer.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    bestaetigen();
+    confirmAnswer();
   });
 
   el.confirm.addEventListener('click', function () {
-    bestaetigen();
-    // Auf dem Tablet bleibt die Tastatur so am Feld statt am Knopf.
+    confirmAnswer();
+    // On a tablet this keeps the keyboard at the field instead of the button.
     if (el.menu.hidden) el.answer.focus();
   });
 
@@ -785,7 +785,7 @@
     nextQuestion();
   });
 
-  /* ---------- Sprachausgabe ---------- */
+  /* ---------- Speech output ---------- */
 
   var tts = {
     supported: typeof window.speechSynthesis !== 'undefined',
@@ -793,9 +793,9 @@
     unlocked: false
   };
 
-  // Solange die Aufgabe vorgelesen wird, darf das Mikrofon nicht zuhören —
-  // sonst erkennt es die eigene Sprachausgabe als Antwort.
-  var wirdVorgelesen = false;
+  // While the question is being read out the microphone must not listen —
+  // otherwise it recognises the app's own speech output as an answer.
+  var isReadingAloud = false;
 
   function pickGermanVoice() {
     if (!tts.supported) return;
@@ -810,14 +810,15 @@
 
   if (tts.supported) {
     pickGermanVoice();
-    // Die Stimmenliste ist beim ersten Aufruf oft noch leer.
+    // On the first call the voice list is often still empty.
     window.speechSynthesis.addEventListener('voiceschanged', pickGermanVoice);
   }
 
-  // Manche Engines halten die Sprachausgabe an, ohne je onend oder onerror zu
-  // melden — etwa wenn der Tab in den Hintergrund gerät. Ohne diesen Wachhund
-  // bliebe die Uhr dann auf 0 stehen und jede Antwort zählte als Treffer.
-  var SPRECH_ZEITGRENZE_MS = 5000;
+  // Some engines stop the speech output without ever reporting onend or
+  // onerror — for instance when the tab moves into the background. Without
+  // this watchdog the clock would stay at 0 and every answer would count as a
+  // hit.
+  var SPEECH_TIMEOUT_MS = 5000;
 
   function speak(text, onEnd) {
     if (!tts.supported) { if (onEnd) onEnd(); return; }
@@ -827,20 +828,20 @@
     if (tts.voice) u.voice = tts.voice;
     u.rate = 0.95;
     var done = false;
-    var wachhund = null;
+    var watchdog = null;
     function finish() {
       if (done) return;
       done = true;
-      if (wachhund !== null) clearTimeout(wachhund);
+      if (watchdog !== null) clearTimeout(watchdog);
       if (onEnd) onEnd();
     }
     u.onend = finish;
-    u.onerror = finish;   // sonst bliebe die Uhr bei einem Engine-Fehler stehen
-    wachhund = setTimeout(finish, SPRECH_ZEITGRENZE_MS);
+    u.onerror = finish;   // otherwise the clock would stall on an engine error
+    watchdog = setTimeout(finish, SPEECH_TIMEOUT_MS);
     try {
       window.speechSynthesis.speak(u);
     } catch (e) {
-      // Manche Engines werfen synchron; die Uhr darf davon nicht stehenbleiben.
+      // Some engines throw synchronously; the clock must not stall on that.
       finish();
     }
   }
@@ -857,20 +858,20 @@
   el.toolbar.appendChild(ttsButton);
 
   function renderTtsButton() {
-    // Der Knopf zeigt nur "an", wenn auch wirklich gesprochen wird. Nach einem
-    // Neuladen ist die Einstellung zwar noch gespeichert, der Browser verlangt
-    // aber erst eine Nutzergeste — bis dahin steht der Knopf ehrlich auf "aus".
-    var sprichtWirklich = profile().settings.tts && tts.unlocked;
-    ttsButton.setAttribute('aria-pressed', sprichtWirklich ? 'true' : 'false');
+    // The button only shows "on" when speaking really happens. After a reload
+    // the setting is still stored, but the browser first demands a user
+    // gesture — until then the button honestly says "off".
+    var reallySpeaks = profile().settings.tts && tts.unlocked;
+    ttsButton.setAttribute('aria-pressed', reallySpeaks ? 'true' : 'false');
   }
 
   ttsButton.addEventListener('click', function () {
     if (!tts.supported) return;
     var p = profile();
     if (p.settings.tts && !tts.unlocked) {
-      // Die Einstellung war gespeichert, es fehlte nur die Geste, die der
-      // Browser verlangt. Dieser Klick ist sie — also freischalten statt
-      // ausschalten.
+      // The setting was stored, only the gesture the browser demands was
+      // missing. This click is that gesture — so unlock instead of switching
+      // off.
       tts.unlocked = true;
     } else {
       p.settings.tts = !p.settings.tts;
@@ -878,62 +879,62 @@
     }
     persist();
     renderTtsButton();
-    if (session.currentKey === null) return;   // Abschlussbildschirm: nichts vorzulesen
+    if (session.currentKey === null) return;   // completion screen: nothing to read out
     if (p.settings.tts) {
-      // Dieser Klick ist die Nutzergeste, die iOS/Safari verlangt.
-      var schluessel = session.currentKey;
-      var ab = ML.parseCardKey(schluessel);
+      // This click is the user gesture iOS/Safari demands.
+      var key = session.currentKey;
+      var ab = ML.parseCardKey(key);
       session.startedAt = 0;
-      zeitAktualisieren();   // Uhr angehalten: auch der Balken ruht
-      wirdVorgelesen = true;
+      updateTimer();   // clock stopped: the bar rests too
+      isReadingAloud = true;
       stopListening();
       speak(ML.spokenQuestion(ab.a, ab.b), function () {
-        wirdVorgelesen = false;
-        if (session.currentKey !== schluessel) {
-          // Aufgabe gewechselt: Uhr in Ruhe lassen, Zuhören aber wieder
-          // anwerfen (siehe nextQuestion).
+        isReadingAloud = false;
+        if (session.currentKey !== key) {
+          // Question changed: leave the clock alone, but start listening again
+          // (see nextQuestion).
           startListening();
           return;
         }
         session.startedAt = Date.now();
-        zeitAktualisieren();
+        updateTimer();
         startListening();
       });
     } else {
       window.speechSynthesis.cancel();
       session.startedAt = Date.now();
-      zeitAktualisieren();
+      updateTimer();
     }
   });
 
-  /* ---------- Spracheingabe ---------- */
+  /* ---------- Speech input ---------- */
 
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  var STT_MAX_FEHLER_IN_FOLGE = 5;
+  var STT_MAX_CONSECUTIVE_ERRORS = 5;
 
-  // Wachhund der Spracheingabe — dasselbe Motiv wie SPRECH_ZEITGRENZE_MS bei
-  // der Sprachausgabe: der Neustart des Zuhörens hing allein am 'end'-Ereignis
-  // des Erkenners. Bleibt das ein einziges Mal aus — weil start() folgenlos
-  // blieb, weil start() geworfen hat, weil die Engine hängt —, ist das
-  // Mikrofon bis zur nächsten Bedienung endgültig still, obwohl der Knopf
-  // weiter "an" zeigt.
+  // Watchdog of the speech input — the same motive as SPEECH_TIMEOUT_MS for
+  // the speech output: restarting the listening hung solely off the 'end'
+  // event of the recogniser. If that fails to arrive a single time — because
+  // start() had no effect, because start() threw, because the engine hangs —
+  // the microphone stays silent for good until the next interaction, while the
+  // button keeps showing "on".
   //
-  // Bis zum 'start'-Ereignis: mit erteilter Erlaubnis meldet Chrome den Beginn
-  // binnen weniger Millisekunden. 3 s lassen einem langsamen Geräte- oder
-  // Netzstart Luft und sind kurz genug, dass ein Kind den Aussetzer kaum merkt.
-  var STT_START_ZEITGRENZE_MS = 3000;
-  // Beim allerersten Durchgang kann die Erlaubnisabfrage des Browsers offen
-  // stehen. Solange darf der Wachhund nicht dazwischenfunken, sonst schaltet er
-  // das Mikrofon ab, während der Erwachsene noch den Dialog liest.
-  var STT_ERSTSTART_ZEITGRENZE_MS = 30000;
-  // Nach bestätigtem Start bis zum nächsten Lebenszeichen. Chrome meldet von
-  // sich aus nach einigen Sekunden Stille 'no-speech' und danach 'end'; die
-  // Grenze muss deutlich darüber liegen, damit ruhiges Nachdenken nicht als
-  // Aussetzer gilt. Sie ist die letzte Reißleine, nicht der Normalfall.
-  var STT_LEBEN_ZEITGRENZE_MS = 20000;
-  // Bremse gegen einen Neustart-Sturm, wenn start() sofort wirft.
-  var STT_NEUSTART_VERZOEGERUNG_MS = 300;
+  // Until the 'start' event: with permission granted Chrome reports the
+  // beginning within a few milliseconds. 3 s leave room for a slow device or
+  // network start and are short enough that a child barely notices the gap.
+  var STT_START_TIMEOUT_MS = 3000;
+  // On the very first run the browser's permission prompt may be open. The
+  // watchdog must not interfere for that long, otherwise it switches the
+  // microphone off while the adult is still reading the dialog.
+  var STT_FIRST_START_TIMEOUT_MS = 30000;
+  // After a confirmed start until the next sign of life. Chrome reports
+  // 'no-speech' by itself after a few seconds of silence and 'end' after that;
+  // the limit has to sit clearly above it so that quiet thinking does not
+  // count as a dropout. It is the last resort, not the normal case.
+  var STT_ALIVE_TIMEOUT_MS = 20000;
+  // Brake against a restart storm when start() throws immediately.
+  var STT_RESTART_DELAY_MS = 300;
 
   var stt = {
     supported: !!SR,
@@ -942,222 +943,223 @@
     recognizer: null,
     spokeEndAt: 0,
     permissionDenied: false,
-    fehlerInFolge: 0,
-    // Buchführung über den laufenden Zuhör-Durchgang.
-    laufNr: 0,          // laufende Nummer, macht überlappende Durchgänge unterscheidbar
-    gestartet: false,   // hat der aktuelle Durchgang nachweislich begonnen?
-    jeGestartet: false, // hat je einer begonnen? Dann ist die Erlaubnis erteilt.
-    wachhund: null      // Timer-Handle des Wachhunds
+    consecutiveErrors: 0,
+    // Bookkeeping about the running listening pass.
+    runId: 0,           // running number, makes overlapping passes distinguishable
+    started: false,     // has the current pass demonstrably begun?
+    everStarted: false, // has one ever begun? Then permission has been granted.
+    watchdog: null      // timer handle of the watchdog
   };
 
-  // Reine Diagnose: das Protokoll darf nichts an der Bedienung ändern, nichts
-  // in der Oberfläche anzeigen und keine Zustandslogik beeinflussen. Festes
-  // Präfix, damit sich die Konsole danach filtern lässt; Durchgangsnummer und
-  // Kartenschlüssel, weil sich überlappende Durchgänge sonst nicht auseinander-
-  // halten lassen — und genau die sind der interessante Fall.
-  function sttProtokoll(nr, karte, text) {
+  // Pure diagnostics: the log must not change anything about the interaction,
+  // must not show anything in the interface and must not influence any state
+  // logic. Fixed prefix so that the console can be filtered by it; pass number
+  // and card key, because overlapping passes cannot be told apart otherwise —
+  // and those are exactly the interesting case.
+  function sttLog(runId, card, text) {
     if (typeof console === 'undefined' || !console.log) return;
-    console.log('[STT] #' + nr + ' ' + (karte === null ? '—' : karte) + ' ' + text);
+    console.log('[STT] #' + runId + ' ' + (card === null ? '—' : card) + ' ' + text);
   }
 
-  /* ---------- Statusanzeige des Mikrofons ---------- */
+  /* ---------- Status display of the microphone ---------- */
 
-  // Die Anzeige ist reine Rückmeldung: sie wertet keine Karte, reicht keine
-  // Antwort ein und fasst die Zeitmessung nicht an. Zwei Bausteine:
+  // The display is pure feedback: it grades no card, submits no answer and
+  // does not touch the time measurement. Two building blocks:
   //
-  //   1. Der laufende Zustand wird aus der Lage abgeleitet (ML.mikrofonZustand)
-  //      und bei jedem Ereignis neu berechnet.
-  //   2. Die kurzlebigen Meldungen — verstanden, nicht verstanden, nichts
-  //      gehört — werden gesetzt und halten die Ableitung eine Weile fest.
-  //      Ohne diese Sperre wären sie unsichtbar: die nächste Aufgabe folgt im
-  //      selben Tick, genau wie bei #feedback.
-  var MIK_HALTEDAUER_MS = 1800;
-  // Der gehörte Text lebt länger als die Meldung: er soll noch dastehen,
-  // während das Kind über die nächste Aufgabe nachdenkt.
-  var MIK_ECHO_DAUER_MS = 7000;
-  var MIK_ECHO_MAX_ZEICHEN = 32;
+  //   1. The ongoing state is derived from the situation (ML.micState) and
+  //      recomputed on every event.
+  //   2. The short-lived messages — understood, not understood, nothing heard
+  //      — are set and hold the derivation back for a while. Without that lock
+  //      they would be invisible: the next question follows in the same tick,
+  //      exactly as with #feedback.
+  var MIC_HOLD_MS = 1800;
+  // The heard text lives longer than the message: it should still be there
+  // while the child is thinking about the next question.
+  var MIC_ECHO_MS = 7000;
+  var MIC_ECHO_MAX_CHARS = 32;
 
-  var mik = {
-    spricht: false,       // zwischen speechstart/soundstart und speechend
-    verarbeitet: false,   // zwischen speechend und Ergebnis oder Fehler
-    sperrTimer: null,     // hält eine kurzlebige Meldung fest
+  var mic = {
+    speaking: false,    // between speechstart/soundstart and speechend
+    processing: false,  // between speechend and result or error
+    holdTimer: null,    // holds a short-lived message in place
     echoTimer: null
   };
 
-  var MIK_TEXTE = {};
-  MIK_TEXTE[ML.MIK_PAUSIERT] = 'Mikrofon pausiert';
-  MIK_TEXTE[ML.MIK_VORLESEN] = 'Noch nicht sprechen';
-  MIK_TEXTE[ML.MIK_STARTET] = 'Mikrofon startet …';
-  MIK_TEXTE[ML.MIK_BEREIT] = 'Jetzt sprechen';
-  MIK_TEXTE[ML.MIK_HOERT] = 'Ich höre dich';
-  MIK_TEXTE[ML.MIK_VERARBEITET] = 'Einen Moment …';
+  var MIC_TEXTS = {};
+  MIC_TEXTS[ML.MIC_PAUSED] = 'Mikrofon pausiert';
+  MIC_TEXTS[ML.MIC_READING] = 'Noch nicht sprechen';
+  MIC_TEXTS[ML.MIC_STARTING] = 'Mikrofon startet …';
+  MIC_TEXTS[ML.MIC_READY] = 'Jetzt sprechen';
+  MIC_TEXTS[ML.MIC_HEARING] = 'Ich höre dich';
+  MIC_TEXTS[ML.MIC_PROCESSING] = 'Einen Moment …';
 
-  // Welche Balkenform zu welchem Zustand gehört. „wartet“ ist die ruhige
-  // Grundform für alles, was zum Warten auffordert.
-  var MIK_FORMEN = {};
-  MIK_FORMEN[ML.MIK_PAUSIERT] = 'wartet';
-  MIK_FORMEN[ML.MIK_VORLESEN] = 'wartet';
-  MIK_FORMEN[ML.MIK_STARTET] = 'wartet';
-  MIK_FORMEN[ML.MIK_BEREIT] = 'bereit';
-  MIK_FORMEN[ML.MIK_HOERT] = 'hoert';
-  MIK_FORMEN[ML.MIK_VERARBEITET] = 'verarbeitet';
+  // Which bar shape belongs to which state. "waiting" is the calm base shape
+  // for everything that asks the child to wait.
+  var MIC_SHAPES = {};
+  MIC_SHAPES[ML.MIC_PAUSED] = 'waiting';
+  MIC_SHAPES[ML.MIC_READING] = 'waiting';
+  MIC_SHAPES[ML.MIC_STARTING] = 'waiting';
+  MIC_SHAPES[ML.MIC_READY] = 'ready';
+  MIC_SHAPES[ML.MIC_HEARING] = 'hearing';
+  MIC_SHAPES[ML.MIC_PROCESSING] = 'processing';
 
-  function mikSchreiben(form, text) {
-    el.mikrofonstatus.hidden = false;
-    el.mikrofonstatus.className = form;
-    el.mikrofonzustand.textContent = text;
+  function micWrite(shape, text) {
+    el.micStatus.hidden = false;
+    el.micStatus.className = shape;
+    el.micState.textContent = text;
   }
 
-  function mikSperreLoeschen() {
-    if (mik.sperrTimer === null) return;
-    clearTimeout(mik.sperrTimer);
-    mik.sperrTimer = null;
+  function micClearHold() {
+    if (mic.holdTimer === null) return;
+    clearTimeout(mic.holdTimer);
+    mic.holdTimer = null;
   }
 
-  // Setzt eine kurzlebige Meldung und hält sie fest. Ein Aufruf mit erzwingen
-  // im Rücken (mikAktualisieren(true)) räumt sie jederzeit wieder ab.
-  function mikMelden(form, text) {
-    mikSperreLoeschen();
-    mikSchreiben(form, text);
-    mik.sperrTimer = setTimeout(function () {
-      mik.sperrTimer = null;
-      mikAktualisieren();
-    }, MIK_HALTEDAUER_MS);
+  // Sets a short-lived message and holds it in place. A call with force behind
+  // it (micUpdate(true)) clears it again at any time.
+  function micReport(shape, text) {
+    micClearHold();
+    micWrite(shape, text);
+    mic.holdTimer = setTimeout(function () {
+      mic.holdTimer = null;
+      micUpdate();
+    }, MIC_HOLD_MS);
   }
 
-  function mikAktualisieren(erzwingen) {
-    if (erzwingen) mikSperreLoeschen();
-    else if (mik.sperrTimer !== null) return;   // kurzlebige Meldung steht noch
-    var zustand = ML.mikrofonZustand({
-      aktiv: stt.supported && stt.secure && stt.active,
-      pausiert: !el.menu.hidden || session.awaitingAck || session.currentKey === null,
-      wirdVorgelesen: wirdVorgelesen,
-      verarbeitet: mik.verarbeitet,
-      spricht: mik.spricht,
-      gestartet: stt.gestartet
+  function micUpdate(force) {
+    if (force) micClearHold();
+    else if (mic.holdTimer !== null) return;   // a short-lived message still stands
+    var state = ML.micState({
+      active: stt.supported && stt.secure && stt.active,
+      paused: !el.menu.hidden || session.awaitingAck || session.currentKey === null,
+      reading: isReadingAloud,
+      processing: mic.processing,
+      speaking: mic.speaking,
+      started: stt.started
     });
-    if (zustand === ML.MIK_AUS) {
-      // Aus heißt weg: eine graue Zeile ohne Aussage lenkt beim Tippen nur ab.
-      el.mikrofonstatus.hidden = true;
-      el.mikrofonstatus.className = '';
-      el.mikrofonzustand.textContent = '';
-      mikEchoLoeschen();
+    if (state === ML.MIC_OFF) {
+      // Off means gone: a grey line without a statement only distracts while
+      // typing.
+      el.micStatus.hidden = true;
+      el.micStatus.className = '';
+      el.micState.textContent = '';
+      micClearEcho();
       return;
     }
-    mikSchreiben(MIK_FORMEN[zustand], MIK_TEXTE[zustand]);
+    micWrite(MIC_SHAPES[state], MIC_TEXTS[state]);
   }
 
-  function mikEchoLoeschen() {
-    if (mik.echoTimer !== null) { clearTimeout(mik.echoTimer); mik.echoTimer = null; }
-    el.mikrofongehoert.textContent = '';
+  function micClearEcho() {
+    if (mic.echoTimer !== null) { clearTimeout(mic.echoTimer); mic.echoTimer = null; }
+    el.micHeard.textContent = '';
   }
 
-  // Zeigt, was der Erkenner verstanden hat — auch und gerade dann, wenn es
-  // falsch war. textContent, nie innerHTML: der Text kommt von außen.
-  function mikEchoSetzen(text) {
-    mikEchoLoeschen();
-    var sauber = String(text === null || text === undefined ? '' : text).trim();
-    if (sauber === '') return;
-    if (sauber.length > MIK_ECHO_MAX_ZEICHEN) {
-      sauber = sauber.slice(0, MIK_ECHO_MAX_ZEICHEN) + '…';
+  // Shows what the recogniser understood — also, and especially, when it was
+  // wrong. textContent, never innerHTML: the text comes from outside.
+  function micSetEcho(text) {
+    micClearEcho();
+    var clean = String(text === null || text === undefined ? '' : text).trim();
+    if (clean === '') return;
+    if (clean.length > MIC_ECHO_MAX_CHARS) {
+      clean = clean.slice(0, MIC_ECHO_MAX_CHARS) + '…';
     }
-    el.mikrofongehoert.textContent = 'gehört: „' + sauber + '“';
-    mik.echoTimer = setTimeout(function () {
-      mik.echoTimer = null;
-      el.mikrofongehoert.textContent = '';
-    }, MIK_ECHO_DAUER_MS);
+    el.micHeard.textContent = 'gehört: „' + clean + '“';
+    mic.echoTimer = setTimeout(function () {
+      mic.echoTimer = null;
+      el.micHeard.textContent = '';
+    }, MIC_ECHO_MS);
   }
 
-  // Die eine Frage, ob gerade überhaupt zugehört werden soll. In allen anderen
-  // Zuständen ist Stille richtig, und der Wachhund hat zu schweigen.
-  function zuhoerenErwartet() {
-    return stt.active && !wirdVorgelesen && el.menu.hidden
+  // The single question of whether listening should happen at all right now.
+  // In every other state silence is correct, and the watchdog has to keep
+  // quiet.
+  function shouldListen() {
+    return stt.active && !isReadingAloud && el.menu.hidden
         && !session.awaitingAck && session.currentKey !== null;
   }
 
-  function wachhundLoeschen() {
-    if (stt.wachhund === null) return;
-    clearTimeout(stt.wachhund);
-    stt.wachhund = null;
+  function clearWatchdog() {
+    if (stt.watchdog === null) return;
+    clearTimeout(stt.watchdog);
+    stt.watchdog = null;
   }
 
-  // Stellt den Wachhund auf den aktuellen Durchgang. Ein abgelöster Durchgang
-  // kann damit weder den Wachhund eines neuen abräumen noch ihn auslösen: die
-  // Nummer wird beim Stellen festgehalten und beim Anschlagen geprüft.
-  function wachhundStellen(frist, grund) {
-    wachhundLoeschen();
-    var nr = stt.laufNr;
-    var karte = session.currentKey;
-    stt.wachhund = setTimeout(function () {
-      stt.wachhund = null;
-      if (nr !== stt.laufNr) {
-        sttProtokoll(nr, karte, 'Wachhund verworfen (abgelöst)');
+  // Arms the watchdog for the current pass. A superseded pass can thereby
+  // neither clear the watchdog of a new one nor trigger it: the number is
+  // captured when arming and checked when it strikes.
+  function armWatchdog(delay, reason) {
+    clearWatchdog();
+    var runId = stt.runId;
+    var card = session.currentKey;
+    stt.watchdog = setTimeout(function () {
+      stt.watchdog = null;
+      if (runId !== stt.runId) {
+        sttLog(runId, card, 'watchdog discarded (superseded)');
         return;
       }
-      if (!zuhoerenErwartet()) {
-        sttProtokoll(nr, karte, 'Wachhund still (zu Recht kein Zuhören)');
+      if (!shouldListen()) {
+        sttLog(runId, card, 'watchdog quiet (rightly not listening)');
         return;
       }
-      // Der Wachhund wertet NIE eine Karte und reicht NIE eine Antwort ein —
-      // er startet ausschließlich das Zuhören neu. Er zahlt dabei in dieselbe
-      // Bremse ein wie die Erkennerfehler, sonst feuerte er offline oder mit
-      // kaputtem Mikrofon endlos.
-      stt.fehlerInFolge++;
-      if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
-        sttProtokoll(nr, karte, 'Wachhund gibt auf nach ' + stt.fehlerInFolge + ' Versuchen');
+      // The watchdog NEVER grades a card and NEVER submits an answer — it only
+      // restarts the listening. It pays into the same brake as the recogniser
+      // errors, otherwise it would fire endlessly offline or with a broken
+      // microphone.
+      stt.consecutiveErrors++;
+      if (stt.consecutiveErrors >= STT_MAX_CONSECUTIVE_ERRORS) {
+        sttLog(runId, card, 'watchdog gives up after ' + stt.consecutiveErrors + ' attempts');
         setSttActive(false);
         el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
         return;
       }
-      sttProtokoll(nr, karte, 'Wachhund: ' + grund + ' — Neustart (' + stt.fehlerInFolge + ')');
+      sttLog(runId, card, 'watchdog: ' + reason + ' — restart (' + stt.consecutiveErrors + ')');
       startListening();
-    }, frist);
+    }, delay);
   }
 
-  // Jedes Ereignis des aktuellen Durchgangs ist ein Lebenszeichen und setzt die
-  // Frist zurück. Ereignisse eines abgelösten Erkenners bleiben folgenlos.
-  function sttLebenszeichen(rec, frist, grund) {
+  // Every event of the current pass is a sign of life and resets the deadline.
+  // Events of a superseded recogniser have no effect.
+  function sttHeartbeat(rec, delay, reason) {
     if (rec !== stt.recognizer) return;
-    wachhundStellen(frist, grund);
+    armWatchdog(delay, reason);
   }
 
-  function sttStartFrist() {
-    return stt.jeGestartet ? STT_START_ZEITGRENZE_MS : STT_ERSTSTART_ZEITGRENZE_MS;
+  function sttStartTimeout() {
+    return stt.everStarted ? STT_START_TIMEOUT_MS : STT_FIRST_START_TIMEOUT_MS;
   }
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
 
-  // Chrome 139+ kann on-device erkennen; sonst still auf den Serverweg zurückfallen.
-  // Die Antwort gilt für die ganze Sitzung, der Erkenner wird aber jetzt pro
-  // Durchgang neu gebaut: einmal fragen, danach synchron anwenden.
-  var lokalVerfuegbar = null;   // null = noch keine Antwort
-  var lokalAbgefragt = false;
+  // Chrome 139+ can recognise on-device; otherwise fall back to the server
+  // route silently. The answer applies to the whole session, but the
+  // recogniser is now built per pass: ask once, then apply synchronously.
+  var localAvailable = null;   // null = no answer yet
+  var localQueried = false;
 
   function requestLocalProcessing(rec) {
     if (typeof SR.available !== 'function') return;
-    if (lokalVerfuegbar !== null) {
-      if (lokalVerfuegbar) rec.processLocally = true;
+    if (localAvailable !== null) {
+      if (localAvailable) rec.processLocally = true;
       return;
     }
-    if (lokalAbgefragt) return;   // Antwort steht noch aus
-    lokalAbgefragt = true;
+    if (localQueried) return;   // the answer is still pending
+    localQueried = true;
     try {
       Promise.resolve(SR.available({ langs: ['de-DE'], processLocally: true }))
         .then(function (status) {
-          if (status === 'available') { lokalVerfuegbar = true; rec.processLocally = true; }
+          if (status === 'available') { localAvailable = true; rec.processLocally = true; }
           else if (status === 'downloadable' && typeof SR.install === 'function') {
             SR.install({ langs: ['de-DE'], processLocally: true });
           }
         })
-        .catch(function () { /* Serverweg bleibt */ });
-    } catch (e) { /* Serverweg bleibt */ }
+        .catch(function () { /* the server route stays */ });
+    } catch (e) { /* the server route stays */ }
   }
 
-  // Ein Erkenner pro Zuhör-Durchgang. Die Karte steckt in der Closure, damit
-  // jeder Handler weiß, zu welcher Aufgabe sein Durchgang gehört — eine
-  // gemeinsame Variable wäre längst überschrieben, wenn ein spätes Ergebnis
-  // eintrifft.
-  function buildRecognizer(fuerKarte, nr) {
+  // One recogniser per listening pass. The card sits in the closure so that
+  // every handler knows which question its pass belongs to — a shared variable
+  // would long be overwritten by the time a late result arrives.
+  function buildRecognizer(forCard, runId) {
     var rec = new SR();
     rec.lang = 'de-DE';
     rec.continuous = false;
@@ -1165,133 +1167,135 @@
     rec.maxAlternatives = 5;
     requestLocalProcessing(rec);
 
-    // 'start' und 'audiostart' sind der Beleg, dass der Durchgang wirklich
-    // läuft. Ohne diesen Beleg wartete der Code früher auf ein 'end', das nie
-    // kam.
-    function beginnGemeldet(name) {
+    // 'start' and 'audiostart' are the evidence that the pass is really
+    // running. Without that evidence the code used to wait for an 'end' that
+    // never came.
+    function reportStart(name) {
       if (rec !== stt.recognizer) {
-        sttProtokoll(nr, fuerKarte, name + ' verworfen (abgelöst)');
+        sttLog(runId, forCard, name + ' discarded (superseded)');
         return;
       }
-      if (!stt.gestartet) {
-        stt.gestartet = true;
-        stt.jeGestartet = true;
-        sttProtokoll(nr, fuerKarte, 'gestartet (' + name + ')');
+      if (!stt.started) {
+        stt.started = true;
+        stt.everStarted = true;
+        sttLog(runId, forCard, 'started (' + name + ')');
       }
-      wachhundStellen(STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
-      mikAktualisieren();   // ab hier steht „Jetzt sprechen“
+      armWatchdog(STT_ALIVE_TIMEOUT_MS, 'no sign of life');
+      micUpdate();   // from here on it says „Jetzt sprechen“
     }
 
-    rec.addEventListener('start', function () { beginnGemeldet('start'); });
-    rec.addEventListener('audiostart', function () { beginnGemeldet('audiostart'); });
-    // Nur Lebenszeichen, nicht protokolliert — sonst wird die Konsole beim
-    // normalen Üben unbrauchbar.
-    // Nur der aktuelle Durchgang darf die Anzeige der aktuellen Aufgabe
-    // bewegen. Ein abgelöster Erkenner meldet sein Sprechen und sein Ende noch,
-    // nachdem der nächste Durchgang längst läuft.
-    function fuerAnzeigeGueltig() {
-      return rec === stt.recognizer && fuerKarte === session.currentKey;
+    rec.addEventListener('start', function () { reportStart('start'); });
+    rec.addEventListener('audiostart', function () { reportStart('audiostart'); });
+    // Signs of life only, not logged — otherwise the console becomes useless
+    // during normal practice.
+    // Only the current pass may move the display of the current question. A
+    // superseded recogniser still reports its speech and its end after the
+    // next pass has long been running.
+    function validForDisplay() {
+      return rec === stt.recognizer && forCard === session.currentKey;
     }
-    function sprechenBegonnen() {
-      if (!fuerAnzeigeGueltig()) return;
-      mik.spricht = true;
-      mik.verarbeitet = false;
-      // Was zuletzt gehört wurde, ist überholt, sobald neu gesprochen wird.
-      mikEchoLoeschen();
-      mikAktualisieren(true);
+    function speechStarted() {
+      if (!validForDisplay()) return;
+      mic.speaking = true;
+      mic.processing = false;
+      // Whatever was heard last is outdated as soon as new speech begins.
+      micClearEcho();
+      micUpdate(true);
     }
 
     rec.addEventListener('soundstart', function () {
-      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
-      sprechenBegonnen();
+      sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no sign of life');
+      speechStarted();
     });
     rec.addEventListener('speechstart', function () {
-      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Lebenszeichen');
-      sprechenBegonnen();
+      sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no sign of life');
+      speechStarted();
     });
 
     rec.addEventListener('speechend', function () {
-      // Zeitpunkt VOR der Erkennung — die Erkennungslatenz zählt nicht mit.
-      // Diese Zeile bleibt die erste im Handler und darf nichts vor sich haben.
+      // Timestamp BEFORE the recognition — the recognition latency does not
+      // count. This line stays the first in the handler and must have nothing
+      // in front of it.
       stt.spokeEndAt = Date.now();
-      sttProtokoll(nr, fuerKarte, 'speechend');
-      // Auf 'speechend' folgt 'result' oder 'error'; bleibt beides aus, hängt
-      // die Erkennung.
-      sttLebenszeichen(rec, STT_LEBEN_ZEITGRENZE_MS, 'kein Ergebnis nach speechend');
-      if (!fuerAnzeigeGueltig()) return;
-      mik.spricht = false;
-      mik.verarbeitet = true;
-      mikAktualisieren(true);
+      sttLog(runId, forCard, 'speechend');
+      // 'speechend' is followed by 'result' or 'error'; if both fail to come,
+      // the recognition hangs.
+      sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no result after speechend');
+      if (!validForDisplay()) return;
+      mic.speaking = false;
+      mic.processing = true;
+      micUpdate(true);
     });
 
     rec.addEventListener('result', function (event) {
-      sttProtokoll(nr, fuerKarte, 'result');
-      sttLebenszeichen(rec, STT_START_ZEITGRENZE_MS, 'kein end nach result');
-      // Ergebnisse eines Durchgangs, der zu einer anderen Aufgabe gehört,
-      // dürfen diese Aufgabe nicht werten.
-      if (fuerKarte !== session.currentKey) {
-        sttProtokoll(nr, fuerKarte, 'result verworfen (andere Aufgabe)');
+      sttLog(runId, forCard, 'result');
+      sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after result');
+      // Results of a pass belonging to a different question must not grade
+      // this question.
+      if (forCard !== session.currentKey) {
+        sttLog(runId, forCard, 'result discarded (different question)');
         return;
       }
-      mik.spricht = false;
-      mik.verarbeitet = false;
-      stt.fehlerInFolge = 0;
+      mic.speaking = false;
+      mic.processing = false;
+      stt.consecutiveErrors = 0;
       var alts = event.results[0];
-      var kandidaten = [];
-      var kandidatentexte = [];   // nur für die Anzeige, nie für die Wertung
+      var candidates = [];
+      var candidateTexts = [];   // for the display only, never for grading
       for (var i = 0; i < alts.length; i++) {
-        var zahlen = ML.parseGermanNumbers(alts[i].transcript);
-        if (zahlen.length > 0) {
-          kandidaten.push(zahlen);
-          kandidatentexte.push(alts[i].transcript);
+        var numbers = ML.parseGermanNumbers(alts[i].transcript);
+        if (numbers.length > 0) {
+          candidates.push(numbers);
+          candidateTexts.push(alts[i].transcript);
         }
       }
-      if (kandidaten.length === 0) {
-        // Der Erkenner hat etwas gehört, nur keine Zahl darin. Genau das muss
-        // sichtbar werden — sonst rät das Kind, woran es lag.
-        mikEchoSetzen(alts.length > 0 ? alts[0].transcript : '');
-        mikMelden('fehler', 'Keine Zahl verstanden');
+      if (candidates.length === 0) {
+        // The recogniser heard something, just no number in it. Exactly that
+        // has to become visible — otherwise the child is left guessing what
+        // went wrong.
+        micSetEcho(alts.length > 0 ? alts[0].transcript : '');
+        micReport('error', 'Keine Zahl verstanden');
         retryUnderstood('Nicht verstanden — bitte nochmal');
         return;
       }
-      // Steht die richtige Zahl irgendwo in irgendeiner Alternative, gilt sie.
-      var wert = null;
-      var gewaehlt = 0;   // welche Alternative den Wert geliefert hat
-      for (var j = 0; j < kandidaten.length && wert === null; j++) {
-        if (kandidaten[j].indexOf(session.expected) !== -1) {
-          wert = session.expected;
-          gewaehlt = j;
+      // If the correct number appears anywhere in any alternative, it counts.
+      var value = null;
+      var chosen = 0;   // which alternative delivered the value
+      for (var j = 0; j < candidates.length && value === null; j++) {
+        if (candidates[j].indexOf(session.expected) !== -1) {
+          value = session.expected;
+          chosen = j;
         }
       }
-      if (wert === null) {
-        // Sonst zählt die LETZTE Zahl der ersten Alternative: wer die ganze
-        // Rechnung aufsagt, meint mit der letzten Zahl sein Ergebnis.
-        var erste = kandidaten[0];
-        wert = erste[erste.length - 1];
+      if (value === null) {
+        // Otherwise the LAST number of the first alternative counts: whoever
+        // says the whole sum out loud means their result with the last number.
+        var first = candidates[0];
+        value = first[first.length - 1];
       }
 
-      // Angezeigt wird der Wortlaut, aus dem der gewertete Wert stammt — auch
-      // wenn er falsch ist. Die Meldung muss vor submitAnswer stehen: die
-      // nächste Aufgabe folgt sonst im selben Tick und überschreibt sie.
-      mikEchoSetzen(kandidatentexte[gewaehlt]);
-      mikMelden('verstanden', 'Verstanden: ' + wert);
+      // What is shown is the wording the graded value came from — even when it
+      // is wrong. The message has to stand before submitAnswer: otherwise the
+      // next question follows in the same tick and overwrites it.
+      micSetEcho(candidateTexts[chosen]);
+      micReport('understood', 'Verstanden: ' + value);
 
       var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
       if (session.startedAt === 0) elapsed = 0;
-      submitAnswer(wert, elapsed, sttThresholdMs());
+      submitAnswer(value, elapsed, sttThresholdMs());
     });
 
     rec.addEventListener('error', function (event) {
-      sttProtokoll(nr, fuerKarte, 'error: ' + event.error);
-      // Auf einen Fehler folgt normalerweise 'end'. Bleibt es aus, muss der
-      // Wachhund übernehmen.
-      sttLebenszeichen(rec, STT_START_ZEITGRENZE_MS, 'kein end nach Fehler');
-      // Ein gewöhnlicher Fehler eines veralteten Durchgangs geht diese Aufgabe
-      // nichts an. Eine verweigerte Erlaubnis schon: die gilt dem Mikrofon,
-      // nicht einer einzelnen Aufgabe.
-      if (fuerKarte !== session.currentKey && event.error !== 'not-allowed'
+      sttLog(runId, forCard, 'error: ' + event.error);
+      // An error is normally followed by 'end'. If that fails to come, the
+      // watchdog has to take over.
+      sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after error');
+      // An ordinary error of an outdated pass is none of this question's
+      // business. A denied permission is: that applies to the microphone, not
+      // to a single question.
+      if (forCard !== session.currentKey && event.error !== 'not-allowed'
           && event.error !== 'service-not-allowed') {
-        sttProtokoll(nr, fuerKarte, 'error verworfen (andere Aufgabe)');
+        sttLog(runId, forCard, 'error discarded (different question)');
         return;
       }
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
@@ -1300,118 +1304,118 @@
         el.feedback.textContent = 'Kein Zugriff auf das Mikrofon — Tastatur geht weiter';
         return;
       }
-      // no-speech, audio-capture, network, aborted: nichts werten, neu hören.
-      if (event.error === 'aborted') return;   // eigener stopListening()-Aufruf, kein Fehler
-      mik.spricht = false;
-      mik.verarbeitet = false;
-      stt.fehlerInFolge++;
-      if (stt.fehlerInFolge >= STT_MAX_FEHLER_IN_FOLGE) {
+      // no-speech, audio-capture, network, aborted: grade nothing, listen again.
+      if (event.error === 'aborted') return;   // our own stopListening() call, not an error
+      mic.speaking = false;
+      mic.processing = false;
+      stt.consecutiveErrors++;
+      if (stt.consecutiveErrors >= STT_MAX_CONSECUTIVE_ERRORS) {
         setSttActive(false);
         el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
         return;
       }
       if (event.error === 'no-speech') {
-        mikMelden('fehler', 'Nichts gehört');
+        micReport('error', 'Nichts gehört');
         retryUnderstood('Nichts gehört — bitte nochmal');
       } else {
-        mikMelden('fehler', 'Mikrofon-Problem');
+        micReport('error', 'Mikrofon-Problem');
         retryUnderstood('Mikrofon-Problem — bitte nochmal');
       }
     });
 
     rec.addEventListener('end', function () {
-      // Nur der aktuelle Durchgang darf sich selbst neu starten. Ein abgelöster
-      // Erkenner meldet sein Ende erst, nachdem startListening() den neuen
-      // gesetzt hat — würde er hier neu starten, bräche er den frischen
-      // Durchgang sofort wieder ab, und das endlos. Er darf auch den Wachhund
-      // des neuen Durchgangs nicht abräumen.
+      // Only the current pass may restart itself. A superseded recogniser
+      // reports its end only after startListening() has set the new one —
+      // were it to restart here, it would immediately abort the fresh pass
+      // again, and that endlessly. It must not clear the watchdog of the new
+      // pass either.
       if (rec !== stt.recognizer) {
-        sttProtokoll(nr, fuerKarte, 'end verworfen (abgelöst)');
+        sttLog(runId, forCard, 'end discarded (superseded)');
         return;
       }
-      sttProtokoll(nr, fuerKarte, 'end');
-      // Dieser Durchgang ist beendet; der nächste stellt seinen eigenen Wachhund.
-      wachhundLoeschen();
-      stt.gestartet = false;
-      mik.spricht = false;
-      mik.verarbeitet = false;
-      // Der Browser beendet nach jedem Ergebnis; bei aktivem Modus neu starten.
-      // startListening() prüft selbst, ob Zuhören gerade richtig wäre.
+      sttLog(runId, forCard, 'end');
+      // This pass is finished; the next one arms its own watchdog.
+      clearWatchdog();
+      stt.started = false;
+      mic.speaking = false;
+      mic.processing = false;
+      // The browser ends after every result; restart while the mode is active.
+      // startListening() checks by itself whether listening would be right now.
       startListening();
     });
 
     return rec;
   }
 
-  // Erkennungsfehler werten die Karte NICHT — sie stellen die Aufgabe nur neu.
+  // Recognition errors do NOT grade the card — they only ask the question anew.
   function retryUnderstood(message) {
     el.feedback.textContent = message;
-    // Die Uhr beginnt von vorn: sonst liefe der zweite Versuch gegen die Zeit
-    // des ersten und könnte nie schnell genug sein. Der sichtbare Timer und
-    // die Frist müssen mit — ein Kind mit schlechtem Mikrofon darf seinen
-    // Lernstand nicht durch Fristabläufe verlieren, die es nie zu sehen bekam.
+    // The clock starts over: otherwise the second attempt would run against
+    // the time of the first and could never be fast enough. The visible timer
+    // and the deadline have to follow — a child with a bad microphone must not
+    // lose its progress to deadlines it never got to see.
     session.startedAt = Date.now();
-    zeitNeuStellen();
+    rearmDeadline();
   }
 
   function startListening() {
-    // Hinter dem offenen Menü, während des Vorlesens und während der
-    // Fehleranzeige wird nicht zugehört. Ohne diese Sperre startet der
-    // 'end'-Handler nach dem abort() aus openMenu() sofort wieder.
-    if (!zuhoerenErwartet()) { mikAktualisieren(); return; }
-    stopListening();                       // einen noch laufenden Durchgang beenden
+    // Behind the open menu, while reading out and during the error display
+    // there is no listening. Without this lock the 'end' handler restarts
+    // immediately after the abort() from openMenu().
+    if (!shouldListen()) { micUpdate(); return; }
+    stopListening();                       // end a pass that is still running
     stt.spokeEndAt = 0;
-    stt.laufNr++;
-    stt.gestartet = false;
-    mik.spricht = false;
-    mik.verarbeitet = false;
-    var nr = stt.laufNr;
-    var karte = session.currentKey;
-    stt.recognizer = buildRecognizer(karte, nr);
-    sttProtokoll(nr, karte, 'Start angefordert');
+    stt.runId++;
+    stt.started = false;
+    mic.speaking = false;
+    mic.processing = false;
+    var runId = stt.runId;
+    var card = session.currentKey;
+    stt.recognizer = buildRecognizer(card, runId);
+    sttLog(runId, card, 'start requested');
     try {
       stt.recognizer.start();
     } catch (e) {
-      // Früher wurde ein Startfehler kommentarlos geschluckt — danach stand ein
-      // Erkenner bereit, der nie ein Ereignis lieferte, und das Mikrofon war
-      // endgültig still. Jetzt übernimmt der Wachhund; die kurze Verzögerung
-      // verhindert eine Rekursion im selben Tick.
-      sttProtokoll(nr, karte, 'start() warf: ' + (e && e.name ? e.name : e));
-      wachhundStellen(STT_NEUSTART_VERZOEGERUNG_MS, 'start() warf');
-      mikAktualisieren();
+      // A start error used to be swallowed without comment — after that a
+      // recogniser stood ready that never delivered an event, and the
+      // microphone was silent for good. Now the watchdog takes over; the short
+      // delay prevents recursion within the same tick.
+      sttLog(runId, card, 'start() threw: ' + (e && e.name ? e.name : e));
+      armWatchdog(STT_RESTART_DELAY_MS, 'start() threw');
+      micUpdate();
       return;
     }
-    wachhundStellen(sttStartFrist(), 'kein Start-Ereignis');
-    mikAktualisieren();   // „Mikrofon startet …“ bis der Beginn bestätigt ist
+    armWatchdog(sttStartTimeout(), 'no start event');
+    micUpdate();   // „Mikrofon startet …“ until the beginning is confirmed
   }
 
   function stopListening() {
-    // Hier wird bewusst nicht zugehört — also hat auch der Wachhund zu ruhen.
-    wachhundLoeschen();
-    stt.gestartet = false;
-    mik.spricht = false;
-    mik.verarbeitet = false;
-    mikAktualisieren();
+    // There is deliberately no listening here — so the watchdog has to rest too.
+    clearWatchdog();
+    stt.started = false;
+    mic.speaking = false;
+    mic.processing = false;
+    micUpdate();
     if (!stt.recognizer) return;
-    try { stt.recognizer.abort(); } catch (e) { /* nicht gestartet */ }
+    try { stt.recognizer.abort(); } catch (e) { /* not started */ }
   }
 
   function setSttActive(on) {
     stt.active = on;
-    // Der Mikrofonzustand wird bewusst NICHT gespeichert: der Browser verlangt
-    // in jeder Sitzung eine neue Erlaubnis-Geste, ein wiederhergestelltes "an"
-    // wäre also gelogen. Das Feld bleibt im Schema auf seinem Vorgabewert.
+    // The microphone state is deliberately NOT stored: the browser demands a
+    // new permission gesture in every session, so a restored "on" would be a
+    // lie. The field stays at its default value in the schema.
     renderSttButton();
-    // startListening() baut den Erkenner selbst — pro Durchgang einen frischen.
+    // startListening() builds the recogniser itself — a fresh one per pass.
     if (on) startListening();
     else stopListening();
-    // Das Ein- und Ausschalten ist eine bewusste Handlung: sie räumt auch eine
-    // noch stehende kurzlebige Meldung ab.
-    if (!on) mikEchoLoeschen();
-    mikAktualisieren(true);
-    // Mit dem Mikrofon ändert sich die geltende Zeitschwelle (Bonus) und damit
-    // die Gesamtfrist. Die Uhr selbst bleibt stehen, wo sie steht.
-    zeitNeuStellen();
+    // Switching on and off is a deliberate action: it also clears a
+    // short-lived message that may still stand.
+    if (!on) micClearEcho();
+    micUpdate(true);
+    // With the microphone the applicable time threshold changes (bonus) and
+    // with it the deadline. The clock itself stays where it is.
+    rearmDeadline();
   }
 
   var sttButton = null;
@@ -1447,7 +1451,7 @@
 
   function renderStats() {
     var p = profile();
-    var boxes = ML.boxVerteilung(p);
+    var boxes = ML.boxDistribution(p);
     var timed = [];
     ML.ALL_CARD_KEYS.forEach(function (k) {
       var c = p.cards[k];
@@ -1465,150 +1469,150 @@
       timed.slice(0, 5).forEach(function (row) {
         var ab = ML.parseCardKey(row.key);
         html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
-                ML.zeitText(row.ms) + '</td></tr>';
+                ML.timeText(row.ms) + '</td></tr>';
       });
       html += '</table>';
     }
     el.stats.innerHTML = html;
   }
 
-  // Was eine Box bedeutet — in einem Satz, den auch ein Kind versteht. Die
-  // Reihenfolge ist die Boxnummer. Die Auffrischungsfristen kommen aus
-  // REFRESH_INTERVALS_MS, damit der Text nicht vom Code abweichen kann.
-  var AUFFRISCHUNGSTAGE = ML.REFRESH_INTERVALS_MS.map(function (ms) {
+  // What a box means — in one sentence a child understands too. The order is
+  // the box number. The refresh intervals come from REFRESH_INTERVALS_MS so
+  // that the text cannot diverge from the code.
+  var REFRESH_DAYS_TEXT = ML.REFRESH_INTERVALS_MS.map(function (ms) {
     return ms / ML.DAY_MS;
   }).join(', dann ');
 
-  var BOX_ERKLAERUNGEN = [
+  var BOX_EXPLANATIONS = [
     'Noch nie richtig und schnell genug beantwortet — oder zuletzt danebengegangen.',
     'Einmal richtig und schnell genug geschafft.',
     'Zweimal hintereinander richtig und schnell genug — fehlt noch einmal.',
     'Dreimal geschafft. Kommt nur noch zur Auffrischung dran: nach ' +
-      AUFFRISCHUNGSTAGE + ' Tagen.'
+      REFRESH_DAYS_TEXT + ' Tagen.'
   ];
 
-  var BOXREGELN =
+  var BOX_RULES_TEXT =
     'So wandern die Aufgaben: richtig und schnell genug — eine Box weiter. ' +
     'Richtig, aber zu langsam — die Aufgabe bleibt stehen, geht aber auch nicht ' +
     'zurück. Falsch — zurück in Box 0. Ein ↻ statt des Hakens heißt: Diese ' +
     'gemeisterte Aufgabe ist zur Auffrischung fällig.';
 
-  var DETAIL_HINWEIS = 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.';
+  var DETAIL_HINT = 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.';
 
-  // Macht aus einem Element ein gefülltes Kartengefäß. Wird für die Legende
-  // und für jede der 100 Rasterzellen gebraucht.
-  function stufeAusstatten(elem, box, faellig) {
-    elem.classList.add('stufe', 'stufe-' + box);
-    var fuellung = document.createElement('span');
-    fuellung.className = 'fuellung';
-    elem.appendChild(fuellung);
+  // Turns an element into a filled card vessel. Needed for the legend and for
+  // each of the 100 grid cells.
+  function buildLevel(elem, box, refreshDue) {
+    elem.classList.add('level', 'level-' + box);
+    var fill = document.createElement('span');
+    fill.className = 'fill';
+    elem.appendChild(fill);
     if (box === ML.BOX_MASTERED) {
-      var zeichen = document.createElement('span');
-      zeichen.className = 'zeichen';
-      zeichen.textContent = faellig ? '↻' : '✓';
-      elem.appendChild(zeichen);
+      var symbol = document.createElement('span');
+      symbol.className = 'symbol';
+      symbol.textContent = refreshDue ? '↻' : '✓';
+      elem.appendChild(symbol);
     }
     return elem;
   }
 
-  function renderBoxlegende() {
-    var boxes = ML.boxVerteilung(profile());
-    el.boxlegende.innerHTML = '';
-    BOX_ERKLAERUNGEN.forEach(function (erklaerung, box) {
+  function renderBoxLegend() {
+    var boxes = ML.boxDistribution(profile());
+    el.boxLegend.innerHTML = '';
+    BOX_EXPLANATIONS.forEach(function (explanation, box) {
       var li = document.createElement('li');
-      li.appendChild(stufeAusstatten(document.createElement('span'), box, false));
+      li.appendChild(buildLevel(document.createElement('span'), box, false));
 
       var text = document.createElement('span');
       text.className = 'text';
-      var kopf = document.createElement('span');
-      kopf.className = 'kopf';
+      var head = document.createElement('span');
+      head.className = 'head';
       var name = document.createElement('span');
       name.className = 'name';
-      name.textContent = ML.BOX_NAMEN[box] + ' · Box ' + box;
-      var anzahl = document.createElement('span');
-      anzahl.className = 'anzahl';
-      anzahl.textContent = boxes[box] === 1 ? '1 Aufgabe' : boxes[box] + ' Aufgaben';
-      kopf.appendChild(name);
-      kopf.appendChild(anzahl);
+      name.textContent = ML.BOX_NAMES[box] + ' · Box ' + box;
+      var count = document.createElement('span');
+      count.className = 'count';
+      count.textContent = boxes[box] === 1 ? '1 Aufgabe' : boxes[box] + ' Aufgaben';
+      head.appendChild(name);
+      head.appendChild(count);
 
-      var satz = document.createElement('span');
-      satz.className = 'erklaerung';
-      satz.textContent = erklaerung;
+      var sentence = document.createElement('span');
+      sentence.className = 'explanation';
+      sentence.textContent = explanation;
 
-      text.appendChild(kopf);
+      text.appendChild(head);
       text.appendChild(document.createElement('br'));
-      text.appendChild(satz);
+      text.appendChild(sentence);
       li.appendChild(text);
-      el.boxlegende.appendChild(li);
+      el.boxLegend.appendChild(li);
     });
-    el.boxregeln.textContent = BOXREGELN;
+    el.boxRules.textContent = BOX_RULES_TEXT;
   }
 
-  // Das 10×10-Raster: Zeile = erster Faktor, Spalte = zweiter Faktor.
-  // Zeigt nur an — es wertet nichts und schreibt nichts.
-  function renderRaster() {
-    var ansichten = ML.kartenAnsichten(profile(), Date.now());
-    var nachKey = {};
-    ansichten.forEach(function (v) { nachKey[v.key] = v; });
+  // The 10×10 grid: row = first factor, column = second factor.
+  // It only displays — it grades nothing and writes nothing.
+  function renderGrid() {
+    var views = ML.cardViews(profile(), Date.now());
+    var byKey = {};
+    views.forEach(function (v) { byKey[v.key] = v; });
 
-    var tabelle = document.createElement('table');
-    var kopfzeile = document.createElement('tr');
-    var ecke = document.createElement('th');
-    ecke.scope = 'col';
-    ecke.textContent = '×';
-    kopfzeile.appendChild(ecke);
+    var table = document.createElement('table');
+    var headRow = document.createElement('tr');
+    var corner = document.createElement('th');
+    corner.scope = 'col';
+    corner.textContent = '×';
+    headRow.appendChild(corner);
     var a, b, th;
     for (b = 1; b <= 10; b++) {
       th = document.createElement('th');
       th.scope = 'col';
       th.textContent = b;
-      kopfzeile.appendChild(th);
+      headRow.appendChild(th);
     }
     var thead = document.createElement('thead');
-    thead.appendChild(kopfzeile);
-    tabelle.appendChild(thead);
+    thead.appendChild(headRow);
+    table.appendChild(thead);
 
     var tbody = document.createElement('tbody');
     for (a = 1; a <= 10; a++) {
       var tr = document.createElement('tr');
-      var zeilenkopf = document.createElement('th');
-      zeilenkopf.scope = 'row';
-      zeilenkopf.textContent = a;
-      tr.appendChild(zeilenkopf);
+      var rowHead = document.createElement('th');
+      rowHead.scope = 'row';
+      rowHead.textContent = a;
+      tr.appendChild(rowHead);
       for (b = 1; b <= 10; b++) {
-        var v = nachKey[ML.cardKey(a, b)];
+        var v = byKey[ML.cardKey(a, b)];
         var td = document.createElement('td');
-        var knopf = document.createElement('button');
-        knopf.type = 'button';
-        knopf.className = 'karte';
-        // Der Satz trägt die Zelle für Maus, Vorlesehilfe und Tippen
-        // gleichermaßen — auf dem Tablet gibt es kein title-Fähnchen.
-        knopf.title = v.beschreibung;
-        knopf.setAttribute('aria-label', v.beschreibung);
-        knopf.setAttribute('data-beschreibung', v.beschreibung);
-        stufeAusstatten(knopf, v.box, v.faellig);
-        td.appendChild(knopf);
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'card';
+        // The sentence carries the cell for mouse, screen reader and tapping
+        // alike — on a tablet there is no title tooltip.
+        button.title = v.description;
+        button.setAttribute('aria-label', v.description);
+        button.setAttribute('data-description', v.description);
+        buildLevel(button, v.box, v.refreshDue);
+        td.appendChild(button);
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
     }
-    tabelle.appendChild(tbody);
+    table.appendChild(tbody);
 
-    el.kartenraster.innerHTML = '';
-    el.kartenraster.appendChild(tabelle);
-    // Ein neu gebautes Raster hat keine Auswahl mehr.
-    el.kartendetail.textContent = DETAIL_HINWEIS;
-    el.kartendetail.classList.remove('aktiv');
+    el.cardGrid.innerHTML = '';
+    el.cardGrid.appendChild(table);
+    // A freshly built grid no longer has a selection.
+    el.cardDetail.textContent = DETAIL_HINT;
+    el.cardDetail.classList.remove('active');
   }
 
-  el.kartenraster.addEventListener('click', function (ev) {
-    var knopf = ev.target.closest('.karte');
-    if (!knopf) return;
-    var vorher = el.kartenraster.querySelector('.karte.gewaehlt');
-    if (vorher) vorher.classList.remove('gewaehlt');
-    knopf.classList.add('gewaehlt');
-    el.kartendetail.textContent = knopf.getAttribute('data-beschreibung');
-    el.kartendetail.classList.add('aktiv');
+  el.cardGrid.addEventListener('click', function (ev) {
+    var button = ev.target.closest('.card');
+    if (!button) return;
+    var previous = el.cardGrid.querySelector('.card.selected');
+    if (previous) previous.classList.remove('selected');
+    button.classList.add('selected');
+    el.cardDetail.textContent = button.getAttribute('data-description');
+    el.cardDetail.classList.add('active');
   });
 
   function renderMenu() {
@@ -1622,42 +1626,42 @@
     });
     el.threshold.value = (thresholdMs() / 1000).toString();
     el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
-    // Ein scharfgeschaltetes Löschen darf keinen Kontextwechsel überleben.
-    loeschBestaetigung = false;
+    // An armed delete must not survive a change of context.
+    deleteConfirmPending = false;
     el.profileDelete.textContent = 'Löschen';
     renderStats();
-    renderBoxlegende();
-    renderRaster();
+    renderBoxLegend();
+    renderGrid();
   }
 
   function openMenu() {
-    // Hinter dem Menü darf weder die Uhr noch das Mikrofon weiterlaufen.
-    // Ein Fristablauf hinter dem offenen Menü wäre ein zerstörter Lernstand
-    // ohne jede Handlung des Kindes.
-    zeitStopp();
+    // Behind the menu neither the clock nor the microphone may keep running.
+    // A deadline expiring behind the open menu would be destroyed progress
+    // without any action by the child.
+    stopClock();
     stopListening();
     renderMenu();
     el.menu.hidden = false;
-    // Erst jetzt ist das Menü offen — der Status muss danach neu gerechnet
-    // werden, sonst stünde er noch auf „Jetzt sprechen“.
-    mikAktualisieren(true);
+    // Only now is the menu open — the status has to be recomputed afterwards,
+    // otherwise it would still say „Jetzt sprechen“.
+    micUpdate(true);
   }
 
   function closeMenu() {
     el.menu.hidden = true;
     el.trainer.hidden = session.currentKey === null;
     el.done.hidden = session.currentKey !== null;
-    // Die wartende Aufgabe wird ab der Rückkehr gemessen, nicht ab vorher.
-    // Der Timer zieht mit; im Menü kann die Zeitschwelle geändert worden sein.
+    // The waiting question is measured from the return, not from before.
+    // The timer follows; the time threshold may have been changed in the menu.
     if (session.currentKey !== null) session.startedAt = Date.now();
-    zeitNeuStellen();
+    rearmDeadline();
     el.answer.focus();
-    if (stt.active) startListening();   // Mikrofon war während des Menüs gesperrt
-    else mikAktualisieren();
+    if (stt.active) startListening();   // the microphone was locked while the menu was open
+    else micUpdate();
   }
 
   function restartSession() {
-    zeitStopp();
+    stopClock();
     stopListening();
     stt.spokeEndAt = 0;
     session.recent = [];
@@ -1665,9 +1669,9 @@
     session.refreshesShown = 0;
     session.freeplay = false;
     session.awaitingAck = false;
-    session.ausFreiemUeben = false;
-    // Nach einem Profilwechsel zählt die erste Antwort als Sitzung des neuen Profils.
-    session.sitzungGezaehlt = false;
+    session.fromFreePlay = false;
+    // After a profile switch the first answer counts as a session of the new profile.
+    session.sessionCounted = false;
     el.done.hidden = true;
     el.trainer.hidden = false;
     renderTtsButton();
@@ -1683,7 +1687,7 @@
     persist();
     renderMenu();
     restartSession();
-    el.menu.hidden = false;   // Menü bleibt offen, Wechsel ist sichtbar
+    el.menu.hidden = false;   // the menu stays open, the switch is visible
   });
 
   el.profileAdd.addEventListener('click', function () {
@@ -1700,9 +1704,9 @@
 
   el.profileDelete.addEventListener('click', function () {
     if (Object.keys(state.profiles).length <= 1) return;
-    if (!loeschBestaetigung) {
-      // Erster Klick fragt nur nach; ein Profil sind Wochen an Lernstand.
-      loeschBestaetigung = true;
+    if (!deleteConfirmPending) {
+      // The first click only asks; a profile is weeks of progress.
+      deleteConfirmPending = true;
       el.profileDelete.textContent = 'Wirklich löschen?';
       return;
     }
@@ -1720,7 +1724,7 @@
     persist();
   });
 
-  // Die Sitzung wird erst bei der ersten Antwort gezählt (siehe submitAnswer).
+  // The session is only counted on the first answer (see submitAnswer).
   renderTtsButton();
   renderSttButton();
   nextQuestion();
@@ -1729,17 +1733,17 @@
                    submitAnswer: submitAnswer, render: render,
                    profile: profile, persist: persist,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
-                   renderRaster: renderRaster, renderStats: renderStats,
+                   renderGrid: renderGrid, renderStats: renderStats,
                    renderTtsButton: renderTtsButton, speak: speak,
                    stt: stt, setSttActive: setSttActive,
                    startListening: startListening, stopListening: stopListening,
-                   mik: mik, mikAktualisieren: mikAktualisieren,
-                   zeit: zeit, zeitAktualisieren: zeitAktualisieren,
-                   zeitNeuStellen: zeitNeuStellen, zeitStopp: zeitStopp,
-                   zeitFristAbgelaufen: zeitFristAbgelaufen,
-                   zeitSchwelleMs: zeitSchwelleMs, zeitLaeuft: zeitLaeuft,
+                   mic: mic, micUpdate: micUpdate,
+                   timer: timer, updateTimer: updateTimer,
+                   rearmDeadline: rearmDeadline, stopClock: stopClock,
+                   onDeadlineExpired: onDeadlineExpired,
+                   currentThresholdMs: currentThresholdMs, clockRunning: clockRunning,
                    thresholdMs: thresholdMs, sttThresholdMs: sttThresholdMs,
-                   flash: flash, retryUnderstood: retryUnderstood };
+                   showFlash: showFlash, retryUnderstood: retryUnderstood };
 })();
 </script>
 </body>
