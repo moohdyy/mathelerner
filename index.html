@@ -220,8 +220,14 @@
     display: flex; flex-direction: column; align-items: center; gap: 3vh;
   }
   #done { text-align: center; max-width: 32ch; }
+  /* Das Menü ist ein Vollbild-Overlay und muss über allem liegen. Der z-index
+     ist nicht schmückend: seit der Timerbalken `position: relative` ist und
+     der Blitz auf z-index 5 liegt, sind beide positioniert und gewännen sonst
+     gegen das nur `fixed` gesetzte Menü — der ablaufende Balken und ein rotes
+     ✗ standen mitten in den Einstellungen. Vor dem Timer gab es im Trainer
+     kein positioniertes Element, deshalb fiel das vorher nicht auf. */
   #menu {
-    position: fixed; inset: 0; background: var(--bg);
+    position: fixed; inset: 0; z-index: 10; background: var(--bg);
     padding: 6vh 5vw; overflow: auto;
     display: flex; flex-direction: column; gap: 1.4rem; align-items: flex-start;
   }
