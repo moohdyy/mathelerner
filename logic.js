@@ -228,7 +228,80 @@
   }
 
   /* ===================================================================
-     Abschnitt 3 — Anzeigezustand der Spracheingabe
+     Abschnitt 3 — Zeitanzeige und Gesamtfrist
+     =================================================================== */
+
+  // Warum die Uhr zwei Stufen hat.
+  //
+  // Der sichtbare Timer soll ablaufen können und die Aufgabe dann als falsch
+  // werten. Liefe er genau bis zur Zeitschwelle, wäre die Spec-Regel „richtig,
+  // aber zu langsam lässt die Karte stehen“ beseitigt — es gäbe schlicht kein
+  // „zu langsam“ mehr, weil vorher abgebrochen würde. Deshalb zwei Stufen:
+  //
+  //   0 ─────── Zeitschwelle ─────────── Gesamtfrist
+  //   [ schnell genug: Karte steigt ]
+  //             [ Kulanz: Antwort zählt, Karte bleibt stehen ]
+  //                                      → Zeit um: Karte auf Box 0
+  //
+  // Die Gesamtfrist ist das Dreifache der geltenden Schwelle (im Sprachmodus
+  // also der Schwelle samt STT_THRESHOLD_BONUS_MS). Drei ist so gewählt, dass
+  // die Kulanz doppelt so lang ist wie die schnelle Zeit — genug, um in Ruhe
+  // nachzudenken und zu tippen oder zu sprechen, und kurz genug, dass die
+  // Aufgabe nicht ewig stehen bleibt.
+  //
+  // Diese Funktionen entscheiden ausschließlich über Anzeige und Frist. Ob
+  // eine Karte steigt, stehen bleibt oder zurückfällt, entscheidet weiterhin
+  // allein gradeAnswer aus der tatsächlich gemessenen Zeit.
+  var ZEIT_FRIST_FAKTOR = 3;
+
+  var ZEIT_SCHNELL = 'schnell';
+  var ZEIT_KULANZ = 'kulanz';
+  var ZEIT_ABGELAUFEN = 'abgelaufen';
+
+  // Eine unbrauchbare Schwelle darf niemals eine Karte kosten: dann gibt es
+  // keine Frist (0) und die Phase bleibt für immer „schnell“.
+  function gueltigeSchwelle(schwelleMs) {
+    var s = Number(schwelleMs);
+    return isFinite(s) && s > 0 ? s : 0;
+  }
+
+  function gesamtfristMs(schwelleMs) {
+    return gueltigeSchwelle(schwelleMs) * ZEIT_FRIST_FAKTOR;
+  }
+
+  function zeitPhase(verstrichenMs, schwelleMs) {
+    var s = gueltigeSchwelle(schwelleMs);
+    if (s === 0) return ZEIT_SCHNELL;
+    var v = Number(verstrichenMs);
+    if (!isFinite(v) || v < 0) v = 0;
+    // Die Grenze liegt genau wie in gradeAnswer bei `<=`: exakt auf der
+    // Schwelle gilt noch als schnell.
+    if (v <= s) return ZEIT_SCHNELL;
+    if (v < s * ZEIT_FRIST_FAKTOR) return ZEIT_KULANZ;
+    return ZEIT_ABGELAUFEN;
+  }
+
+  // Alles, was das Zeichnen des Balkens braucht — ohne einen einzigen
+  // DOM-Zugriff. `anteil` ist der verbleibende Teil der Gesamtfrist (1 → 0),
+  // `schwellenAnteil` die Stelle, an der die Kulanz beginnt; dort steht die
+  // Marke im Balken.
+  function zeitAnzeige(verstrichenMs, schwelleMs) {
+    var s = gueltigeSchwelle(schwelleMs);
+    var gesamt = s * ZEIT_FRIST_FAKTOR;
+    var v = Number(verstrichenMs);
+    if (!isFinite(v) || v < 0) v = 0;
+    var rest = gesamt > 0 ? Math.max(0, gesamt - v) : 0;
+    return {
+      phase: zeitPhase(v, s),
+      anteil: gesamt > 0 ? Math.max(0, Math.min(1, rest / gesamt)) : 1,
+      restMs: rest,
+      gesamtMs: gesamt,
+      schwellenAnteil: gesamt > 0 ? (gesamt - s) / gesamt : 1
+    };
+  }
+
+  /* ===================================================================
+     Abschnitt 4 — Anzeigezustand der Spracheingabe
      =================================================================== */
 
   // Die Statusanzeige des Mikrofons hat genau eine schwierige Stelle: die
@@ -260,7 +333,7 @@
   }
 
   /* ===================================================================
-     Abschnitt 4 — Speicherschicht
+     Abschnitt 5 — Speicherschicht
      =================================================================== */
 
   var STORAGE_KEY = 'mathelerner.v1';
@@ -362,7 +435,7 @@
   }
 
   /* ===================================================================
-     Abschnitt 5 — Fortschrittsanzeige
+     Abschnitt 6 — Fortschrittsanzeige
      =================================================================== */
 
   // Die Boxnummer allein sagt niemandem etwas. Für die Anzeige bekommt jede
@@ -452,6 +525,13 @@
     DEFAULT_THRESHOLD_MS: DEFAULT_THRESHOLD_MS,
     STT_THRESHOLD_BONUS_MS: STT_THRESHOLD_BONUS_MS,
     gradeAnswer: gradeAnswer,
+    ZEIT_FRIST_FAKTOR: ZEIT_FRIST_FAKTOR,
+    ZEIT_SCHNELL: ZEIT_SCHNELL,
+    ZEIT_KULANZ: ZEIT_KULANZ,
+    ZEIT_ABGELAUFEN: ZEIT_ABGELAUFEN,
+    gesamtfristMs: gesamtfristMs,
+    zeitPhase: zeitPhase,
+    zeitAnzeige: zeitAnzeige,
     BOX_WEIGHTS: BOX_WEIGHTS,
     RECENT_MEMORY: RECENT_MEMORY,
     REFRESH_EVERY: REFRESH_EVERY,

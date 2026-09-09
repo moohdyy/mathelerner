@@ -13,10 +13,15 @@
   :root {
     --bg: #fbfbfa; --fg: #1a1a1a; --muted: #8a8a85;
     --ok: #2e7d32; --bad: #c62828; --line: #e3e3df;
+    /* Nur für die Kulanzphase des Timers. Grün und Rot sind der Bewertung
+       einer Antwort vorbehalten — ein Timer in denselben Farben hieße an
+       derselben Stelle zweierlei. */
+    --warn: #a35a00;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #16171a; --fg: #f0f0ee; --muted: #85858c;
-            --ok: #6dd47e; --bad: #ff6b6b; --line: #2c2d31; }
+            --ok: #6dd47e; --bad: #ff6b6b; --line: #2c2d31;
+            --warn: #e0a24a; }
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -27,8 +32,83 @@
     justify-content: center; gap: 3vh; padding: 4vh 5vw;
     -webkit-text-size-adjust: 100%;
   }
-  body.ok  #question { color: var(--ok); }
-  body.bad #question { color: var(--bad); }
+  /* Rückmeldung auf die Antwort.
+     Vorher färbte sich 260 ms lang nur die Schrift der Aufgabe um — an genau
+     der Stelle, von der der Blick beim Antworten längst weg ist. Jetzt färbt
+     sich die ganze Fläche und läuft weich zum Hintergrund zurück.
+     Zwei Signale, nicht eines: Farbe UND Zeichen. Wer Grün und Rot schlecht
+     unterscheidet, liest trotzdem ✓ oder ✗ mitten auf dem Bild.
+     Gedämpft, nicht grell: die Spitze liegt bei knapp einem Viertel Deckung,
+     der Rücklauf dauert viermal so lang wie der Anstieg. Ein vollflächig
+     blinkender Hintergrund wäre bei Kindern unangebracht. */
+  #blitz {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #blitz .flaeche {
+    position: absolute; inset: 0; opacity: 0; background: var(--ok);
+  }
+  #blitz .zeichen {
+    position: relative; opacity: 0; line-height: 1; font-weight: 300;
+    font-size: clamp(6rem, 30vw, 15rem); color: var(--ok);
+  }
+  #blitz.bad .flaeche { background: var(--bad); }
+  #blitz.bad .zeichen { color: var(--bad); }
+  @keyframes blitz-flaeche {
+    0% { opacity: 0 } 14% { opacity: .22 } 100% { opacity: 0 }
+  }
+  @keyframes blitz-zeichen {
+    0%   { opacity: 0; transform: scale(.86) }
+    16%  { opacity: 1; transform: scale(1) }
+    55%  { opacity: .9; transform: scale(1) }
+    100% { opacity: 0; transform: scale(1.05) }
+  }
+  #blitz.ok .flaeche, #blitz.bad .flaeche { animation: blitz-flaeche .72s ease-out both; }
+  #blitz.ok .zeichen, #blitz.bad .zeichen { animation: blitz-zeichen .72s ease-out both; }
+
+  /* Ohne Bewegung: dieselbe Aussage, nur ohne Größenwechsel und mit flacherer
+     Spitze — das Aufleuchten soll auch dann nicht als Zucken ankommen. */
+  @keyframes blitz-flaeche-ruhig {
+    0% { opacity: 0 } 30% { opacity: .16 } 100% { opacity: 0 }
+  }
+  @keyframes blitz-zeichen-ruhig {
+    0% { opacity: 0 } 30% { opacity: .95 } 70% { opacity: .95 } 100% { opacity: 0 }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #blitz.ok .flaeche, #blitz.bad .flaeche { animation-name: blitz-flaeche-ruhig; }
+    #blitz.ok .zeichen, #blitz.bad .zeichen { animation-name: blitz-zeichen-ruhig; }
+  }
+
+  /* Der ablaufende Timer. Ein flacher Balken direkt unter der Aufgabe, der von
+     rechts nach links leerläuft. Die Marke sitzt dort, wo die schnelle Zeit
+     endet und die Kulanz beginnt — erreicht der Balken sie, ist die Aufgabe
+     noch zu retten, sie steigt nur keine Box mehr.
+     Auch hier zwei Signale: die Farbe wechselt von grau nach bernstein UND der
+     Balken wird dicker. Ruhig genug, dass er nicht hetzt, und ohne Zahl —
+     ablesbar, ohne zu lesen. */
+  #zeitbalken { position: relative; width: min(22rem, 80vw); height: 1rem; flex: none; }
+  #zeitbahn, #zeitfuellung {
+    position: absolute; top: 50%; left: 0;
+    border-radius: 999px; transform: translateY(-50%);
+  }
+  #zeitbahn { right: 0; height: .3rem; background: var(--line); }
+  #zeitfuellung {
+    width: 100%; height: .3rem; background: var(--muted);
+    transition: height .25s ease, background-color .25s ease;
+  }
+  #zeitbalken.kulanz #zeitfuellung { height: .62rem; background: var(--warn); }
+  /* Steht die Uhr — die Aufgabe wird gerade vorgelesen, das Menü ist offen,
+     die Auflösung wartet auf Bestätigung —, verschwindet die Füllung in der
+     Bahn. Der Balken bleibt stehen, damit nichts springt, sagt aber nichts. */
+  #zeitbalken.ruht #zeitfuellung { background: var(--line); height: .3rem; }
+  #zeitmarke {
+    position: absolute; top: 50%; left: 66.667%; width: 2px; height: .78rem;
+    transform: translate(-50%, -50%); border-radius: 1px; background: var(--bg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #zeitfuellung { transition: none; }
+  }
+
   #question {
     font-size: clamp(3rem, 18vw, 9rem); font-weight: 300;
     font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
@@ -281,6 +361,14 @@
 
 <main id="trainer">
   <div id="question" aria-live="polite">&nbsp;</div>
+  <!-- Der Timer ist reine Anzeige: aria-hidden, damit die Vorlesehilfe nicht
+       bei jeder Bildwiederholung dazwischenredet. Was zählt, sagt der Text in
+       #feedback. -->
+  <div id="zeitbalken" class="ruht" aria-hidden="true">
+    <span id="zeitbahn"></span>
+    <span id="zeitfuellung"></span>
+    <span id="zeitmarke"></span>
+  </div>
   <div id="mikrofonstatus" hidden>
     <span id="mikrofonpegel" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <span id="mikrofontexte">
@@ -302,6 +390,13 @@
 <div id="progress"></div>
 <div id="speicherwarnung" hidden></div>
 
+<!-- Das Aufleuchten liegt über allem und fängt nichts ab (pointer-events:
+     none). aria-hidden, weil das Zeichen dasselbe sagt wie #feedback. -->
+<div id="blitz" aria-hidden="true">
+  <span class="flaeche"></span>
+  <span class="zeichen"></span>
+</div>
+
 <script src="logic.js"></script>
 <script>
 (function () {
@@ -312,6 +407,11 @@
     answer: document.getElementById('answer'),
     confirm: document.getElementById('confirm'),
     feedback: document.getElementById('feedback'),
+    zeitbalken: document.getElementById('zeitbalken'),
+    zeitfuellung: document.getElementById('zeitfuellung'),
+    zeitmarke: document.getElementById('zeitmarke'),
+    blitz: document.getElementById('blitz'),
+    blitzzeichen: document.querySelector('#blitz .zeichen'),
     mikrofonstatus: document.getElementById('mikrofonstatus'),
     mikrofonzustand: document.getElementById('mikrofonzustand'),
     mikrofongehoert: document.getElementById('mikrofongehoert'),
@@ -375,9 +475,143 @@
 
   function thresholdMs() { return profile().settings.thresholdMs; }
 
-  function flash(cls) {
-    document.body.classList.add(cls);
-    setTimeout(function () { document.body.classList.remove(cls); }, 260);
+  // Wie lange das Aufleuchten dauert. Muss mit den beiden CSS-Animationen
+  // übereinstimmen — sie sind auf .72s gestellt.
+  var BLITZ_DAUER_MS = 720;
+  var blitzTimer = null;
+
+  // Die ganze Fläche färbt sich kurz ein und läuft weich zum Hintergrund
+  // zurück; das Zeichen in der Mitte sagt dasselbe noch einmal ohne Farbe.
+  // `art` ist 'ok' oder 'bad'.
+  function flash(art) {
+    if (blitzTimer !== null) clearTimeout(blitzTimer);
+    el.blitz.className = '';
+    el.blitzzeichen.textContent = art === 'ok' ? '✓' : '✗';
+    // Ohne diesen erzwungenen Umbruch startet die Animation bei zwei schnell
+    // aufeinanderfolgenden Antworten nicht neu: die Klasse war im selben Tick
+    // nie wirklich weg, und der Browser sieht keinen Wechsel.
+    void el.blitz.offsetWidth;
+    el.blitz.className = art;
+    blitzTimer = setTimeout(function () {
+      blitzTimer = null;
+      el.blitz.className = '';
+    }, BLITZ_DAUER_MS);
+  }
+
+  /* ---------- Sichtbarer Timer und Gesamtfrist ---------- */
+
+  // Zwei Uhren, aber nur ein Maß: gezeichnet wird je Bildwiederholung, die
+  // Frist hängt an einem eigenen setTimeout. Gerechnet wird an beiden Stellen
+  // aus `Date.now() - session.startedAt` — nie aus der Zahl der Ticks. Im
+  // Hintergrundtab läuft requestAnimationFrame gar nicht und setTimeout wird
+  // gedrosselt; nur echte Zeitstempel überstehen das.
+  //
+  // Die Anzeige ersetzt die Zeitmessung nicht. Gewertet wird weiterhin allein
+  // die gemessene Zeit über gradeAnswer.
+  var zeit = {
+    basis: 0,          // für welchen session.startedAt gerade gestellt ist
+    frist: null,       // Handle des Fristablaufs
+    bild: null,        // Handle der Zeichenschleife
+    ausgeloest: false  // damit ein Fristablauf genau einmal wirkt
+  };
+
+  var ruhigeBewegung = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false;
+
+  // Welche Schwelle gerade gilt. Im Sprachmodus zählt der Bonus mit, sonst
+  // liefe der Balken gegen eine andere Zeit, als am Ende gewertet wird.
+  function zeitSchwelleMs() {
+    return stt.active ? sttThresholdMs() : thresholdMs();
+  }
+
+  // Die eine Frage, ob die Uhr gerade überhaupt laufen darf.
+  // `session.startedAt === 0` heißt „läuft noch nicht" — die Aufgabe wird
+  // gerade vorgelesen. Hinter dem offenen Menü und während der Fehleranzeige
+  // läuft ebenfalls nichts.
+  function zeitLaeuft() {
+    return session.currentKey !== null && !session.awaitingAck
+        && el.menu.hidden && session.startedAt !== 0;
+  }
+
+  function zeitStopp() {
+    if (zeit.frist !== null) { clearTimeout(zeit.frist); zeit.frist = null; }
+    if (zeit.bild !== null) { window.cancelAnimationFrame(zeit.bild); zeit.bild = null; }
+    zeit.basis = 0;
+    el.zeitbalken.className = 'ruht';
+    el.zeitfuellung.style.width = '100%';
+  }
+
+  function zeitZeichnen() {
+    var a = ML.zeitAnzeige(Date.now() - session.startedAt, zeitSchwelleMs());
+    // Ohne Bewegung springt der Balken in Zwanzigsteln, statt zu gleiten: er
+    // bleibt ablesbar, ohne dauernd zu laufen.
+    var anteil = ruhigeBewegung ? Math.ceil(a.anteil * 20) / 20 : a.anteil;
+    el.zeitfuellung.style.width = (anteil * 100).toFixed(2) + '%';
+    el.zeitbalken.className = a.phase === ML.ZEIT_SCHNELL ? 'schnell' : 'kulanz';
+  }
+
+  function zeitSchleife() {
+    zeit.bild = null;
+    if (!zeitLaeuft()) return;
+    zeitZeichnen();
+    zeit.bild = window.requestAnimationFrame(zeitSchleife);
+  }
+
+  // Der einzige Weg, den Timer zu stellen. Sie prüft selbst, ob gerade
+  // gemessen wird, und darf deshalb aus jedem Zustandswechsel heraus gerufen
+  // werden — genau dadurch können Anzeige und Wertung nicht auseinanderlaufen.
+  function zeitAktualisieren() {
+    if (!zeitLaeuft()) { zeitStopp(); return; }
+    if (zeit.basis === session.startedAt && zeit.frist !== null) return;   // läuft schon
+    if (zeit.frist !== null) { clearTimeout(zeit.frist); zeit.frist = null; }
+    if (zeit.bild !== null) { window.cancelAnimationFrame(zeit.bild); zeit.bild = null; }
+
+    var schwelle = zeitSchwelleMs();
+    var gesamt = ML.gesamtfristMs(schwelle);
+    el.zeitmarke.style.left = (ML.zeitAnzeige(0, schwelle).schwellenAnteil * 100) + '%';
+    if (gesamt <= 0) { zeitStopp(); return; }   // unbrauchbare Schwelle: keine Frist
+
+    zeit.basis = session.startedAt;
+    zeit.ausgeloest = false;
+    // Die Frist zählt ab startedAt, nicht ab jetzt: wird mitten in der Aufgabe
+    // neu gestellt — das Mikrofon ändert die geltende Schwelle —, bleibt die
+    // bereits verstrichene Zeit stehen.
+    var rest = gesamt - (Date.now() - session.startedAt);
+    zeit.frist = setTimeout(zeitFristAbgelaufen, Math.max(0, rest));
+    zeitZeichnen();
+    zeit.bild = window.requestAnimationFrame(zeitSchleife);
+  }
+
+  // Erzwingt ein Neustellen der Frist, ohne die Uhr selbst anzufassen. Nötig,
+  // wenn sich die geltende Schwelle mitten in der Aufgabe ändert.
+  function zeitNeuStellen() {
+    zeit.basis = 0;
+    zeitAktualisieren();
+  }
+
+  // Die Frist ist abgelaufen: die Aufgabe gilt als falsch. Gewertet wird
+  // ausschließlich über submitAnswer — es darf keinen zweiten Weg in die
+  // Speicherschicht geben, sonst gibt es zwei Stellen, die eine Karte
+  // verändern, und eine davon wird irgendwann falsch.
+  function zeitFristAbgelaufen() {
+    zeit.frist = null;
+    if (zeit.ausgeloest) return;          // genau einmal
+    if (!zeitLaeuft()) return;            // Menü offen, Fehleranzeige, Vorlesen
+    var schwelle = zeitSchwelleMs();
+    var gesamt = ML.gesamtfristMs(schwelle);
+    if (gesamt <= 0) return;
+    var verstrichen = Date.now() - session.startedAt;
+    if (verstrichen < gesamt) {
+      // Der Timer kam zu früh — etwa weil die geltende Schwelle inzwischen
+      // größer ist. Gewertet wird die echte Zeit, nie der Tick: neu stellen.
+      zeit.frist = setTimeout(zeitFristAbgelaufen, gesamt - verstrichen);
+      return;
+    }
+    zeit.ausgeloest = true;
+    // Erst schweigen, dann werten: ein danach noch eintreffendes Erkennungs-
+    // ergebnis darf die bereits gewertete Karte nicht ein zweites Mal anfassen.
+    stopListening();
+    submitAnswer(null, verstrichen, schwelle, true);
   }
 
   function render() {
@@ -399,6 +633,7 @@
       el.done.hidden = false;
       render();
       mikAktualisieren();
+      zeitAktualisieren();   // auf dem Abschlussbildschirm läuft keine Frist
       return;
     }
     var ausFreiemUeben = false;
@@ -446,6 +681,7 @@
           return;
         }
         session.startedAt = Date.now();
+        zeitAktualisieren();   // erst jetzt läuft der sichtbare Timer los
         startListening();
       });
     } else {
@@ -453,17 +689,28 @@
       if (stt.active) startListening();
       else mikAktualisieren();
     }
+    // Zuletzt, damit beide Zweige abgedeckt sind: im Vorlese-Zweig steht
+    // startedAt auf 0 und der Balken ruht, sonst läuft er ab hier.
+    zeitAktualisieren();
   }
 
   // elapsedMs kann übersteuert werden (Sprachmodus misst anders).
-  function submitAnswer(value, elapsedMs, overrideThresholdMs) {
+  // `zeitUm` kommt ausschließlich vom Fristablauf: dann gibt es keinen Wert,
+  // und die Aufgabe ist ohne weitere Prüfung falsch. Der Fristablauf hat
+  // bewusst keinen eigenen Weg in die Speicherschicht, sondern geht hier
+  // durch — es darf nur eine Stelle geben, die eine Karte wertet.
+  function submitAnswer(value, elapsedMs, overrideThresholdMs, zeitUm) {
     if (session.currentKey === null || session.awaitingAck) return;
-    if (value === null || isNaN(value)) return;   // nicht verstanden: nicht werten
+    if (!zeitUm && (value === null || isNaN(value))) return;   // nicht verstanden: nicht werten
+
+    // Ab hier wird gewertet: die Uhr darf nicht daneben weiterlaufen und
+    // gleich noch ein zweites Mal zuschlagen.
+    zeitStopp();
 
     var elapsed = typeof elapsedMs === 'number'
       ? elapsedMs
       : (session.startedAt === 0 ? 0 : Date.now() - session.startedAt);
-    var correct = value === session.expected;
+    var correct = !zeitUm && value === session.expected;
     var p = profile();
 
     if (!session.sitzungGezaehlt) {
@@ -495,7 +742,8 @@
       nextQuestion();
     } else {
       flash('bad');
-      el.feedback.textContent = 'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
+      el.feedback.textContent = (zeitUm ? 'Zeit ist um. ' : '') +
+        'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
       el.confirm.textContent = 'Weiter';
       session.awaitingAck = true;
       stopListening();   // während der Fehleranzeige nicht zuhören
@@ -630,6 +878,7 @@
       var schluessel = session.currentKey;
       var ab = ML.parseCardKey(schluessel);
       session.startedAt = 0;
+      zeitAktualisieren();   // Uhr angehalten: auch der Balken ruht
       wirdVorgelesen = true;
       stopListening();
       speak(ML.spokenQuestion(ab.a, ab.b), function () {
@@ -641,11 +890,13 @@
           return;
         }
         session.startedAt = Date.now();
+        zeitAktualisieren();
         startListening();
       });
     } else {
       window.speechSynthesis.cancel();
       session.startedAt = Date.now();
+      zeitAktualisieren();
     }
   });
 
@@ -1090,8 +1341,11 @@
   function retryUnderstood(message) {
     el.feedback.textContent = message;
     // Die Uhr beginnt von vorn: sonst liefe der zweite Versuch gegen die Zeit
-    // des ersten und könnte nie schnell genug sein.
+    // des ersten und könnte nie schnell genug sein. Der sichtbare Timer und
+    // die Frist müssen mit — ein Kind mit schlechtem Mikrofon darf seinen
+    // Lernstand nicht durch Fristabläufe verlieren, die es nie zu sehen bekam.
     session.startedAt = Date.now();
+    zeitNeuStellen();
   }
 
   function startListening() {
@@ -1149,6 +1403,9 @@
     // noch stehende kurzlebige Meldung ab.
     if (!on) mikEchoLoeschen();
     mikAktualisieren(true);
+    // Mit dem Mikrofon ändert sich die geltende Zeitschwelle (Bonus) und damit
+    // die Gesamtfrist. Die Uhr selbst bleibt stehen, wo sie steht.
+    zeitNeuStellen();
   }
 
   var sttButton = null;
@@ -1369,6 +1626,9 @@
 
   function openMenu() {
     // Hinter dem Menü darf weder die Uhr noch das Mikrofon weiterlaufen.
+    // Ein Fristablauf hinter dem offenen Menü wäre ein zerstörter Lernstand
+    // ohne jede Handlung des Kindes.
+    zeitStopp();
     stopListening();
     renderMenu();
     el.menu.hidden = false;
@@ -1382,13 +1642,16 @@
     el.trainer.hidden = session.currentKey === null;
     el.done.hidden = session.currentKey !== null;
     // Die wartende Aufgabe wird ab der Rückkehr gemessen, nicht ab vorher.
+    // Der Timer zieht mit; im Menü kann die Zeitschwelle geändert worden sein.
     if (session.currentKey !== null) session.startedAt = Date.now();
+    zeitNeuStellen();
     el.answer.focus();
     if (stt.active) startListening();   // Mikrofon war während des Menüs gesperrt
     else mikAktualisieren();
   }
 
   function restartSession() {
+    zeitStopp();
     stopListening();
     stt.spokeEndAt = 0;
     session.recent = [];
@@ -1464,7 +1727,13 @@
                    renderTtsButton: renderTtsButton, speak: speak,
                    stt: stt, setSttActive: setSttActive,
                    startListening: startListening, stopListening: stopListening,
-                   mik: mik, mikAktualisieren: mikAktualisieren };
+                   mik: mik, mikAktualisieren: mikAktualisieren,
+                   zeit: zeit, zeitAktualisieren: zeitAktualisieren,
+                   zeitNeuStellen: zeitNeuStellen, zeitStopp: zeitStopp,
+                   zeitFristAbgelaufen: zeitFristAbgelaufen,
+                   zeitSchwelleMs: zeitSchwelleMs, zeitLaeuft: zeitLaeuft,
+                   thresholdMs: thresholdMs, sttThresholdMs: sttThresholdMs,
+                   flash: flash, retryUnderstood: retryUnderstood };
 })();
 </script>
 </body>
