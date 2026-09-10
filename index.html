@@ -961,6 +961,22 @@
     console.log('[STT] #' + runId + ' ' + (card === null ? '—' : card) + ' ' + text);
   }
 
+  // What the recogniser actually delivered, on one line: every alternative with
+  // its confidence and the numbers the parser finds in it. Without this, a
+  // misrecognition cannot be reconstructed afterwards — the log used to say
+  // only THAT a result arrived, never which one.
+  function sttTranscripts(alts) {
+    var parts = [];
+    for (var i = 0; i < alts.length; i++) {
+      var confidence = typeof alts[i].confidence === 'number'
+        ? alts[i].confidence.toFixed(2)
+        : '?';
+      parts.push('\u201e' + alts[i].transcript + '\u201c\u27e8' + confidence + '\u27e9\u2192['
+        + ML.parseGermanNumbers(alts[i].transcript).join(',') + ']');
+    }
+    return parts.length === 0 ? '(no alternative)' : parts.join(' | ');
+  }
+
   /* ---------- Status display of the microphone ---------- */
 
   // The display is pure feedback: it grades no card, submits no answer and
@@ -1228,18 +1244,28 @@
     });
 
     rec.addEventListener('result', function (event) {
-      sttLog(runId, forCard, 'result');
+      // Grading always uses results[0]. Chrome may report several results
+      // within one pass, though; resultIndex then points at a later segment
+      // that never enters the grading here. Both belong in the log, otherwise
+      // it stays unclear which part of the utterance was graded.
+      var alts = event.results[0];
+      sttLog(runId, forCard, 'result [graded segment 0 of ' + event.results.length
+        + ', resultIndex ' + event.resultIndex + ']: ' + sttTranscripts(alts));
+      if (event.results.length > 1 && event.resultIndex > 0) {
+        sttLog(runId, forCard, 'result: ungraded segment ' + event.resultIndex
+          + ': ' + sttTranscripts(event.results[event.resultIndex]));
+      }
       sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after result');
       // Results of a pass belonging to a different question must not grade
       // this question.
       if (forCard !== session.currentKey) {
-        sttLog(runId, forCard, 'result discarded (different question)');
+        sttLog(runId, forCard, 'result discarded (question is now '
+          + (session.currentKey === null ? '\u2014' : session.currentKey) + ')');
         return;
       }
       mic.speaking = false;
       mic.processing = false;
       stt.consecutiveErrors = 0;
-      var alts = event.results[0];
       var candidates = [];
       var candidateTexts = [];   // for the display only, never for grading
       for (var i = 0; i < alts.length; i++) {
@@ -1253,6 +1279,8 @@
         // The recogniser heard something, just no number in it. Exactly that
         // has to become visible — otherwise the child is left guessing what
         // went wrong.
+        sttLog(runId, forCard, 'no number in ' + alts.length
+          + ' alternative(s) \u2014 not graded, asking again');
         micSetEcho(alts.length > 0 ? alts[0].transcript : '');
         micReport('error', 'Keine Zahl verstanden');
         retryUnderstood('Nicht verstanden — bitte nochmal');
@@ -1282,6 +1310,9 @@
 
       var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
       if (session.startedAt === 0) elapsed = 0;
+      sttLog(runId, forCard, 'graded: ' + value + ' from alternative ' + chosen
+        + ' \u201e' + candidateTexts[chosen] + '\u201c, expected ' + session.expected
+        + ', ' + elapsed + ' ms of ' + sttThresholdMs() + ' ms');
       submitAnswer(value, elapsed, sttThresholdMs());
     });
 
