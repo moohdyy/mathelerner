@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Einmaleins</title>
+<title data-i18n="app.title"></title>
 <!-- Tab icon embedded directly: a multiplication sign on a green tile in the
      colours from :root (--ok and --bg). As a data URI it keeps the app at
      exactly two shipped files, and the browser stops asking for
@@ -330,38 +330,45 @@
 <div id="toolbar"></div>
 
 <section id="menu" hidden>
-  <h2>Profil</h2>
+  <h2 data-i18n="menu.profile"></h2>
   <div class="row">
     <div>
-      <label for="profile-select">Aktives Profil</label>
+      <label for="profile-select" data-i18n="menu.activeProfile"></label>
       <select id="profile-select"></select>
     </div>
-    <button id="profile-delete">Löschen</button>
+    <!-- No data-i18n: the text alternates between menu.delete and
+         menu.deleteConfirm and is set by renderMenu(). -->
+    <button id="profile-delete"></button>
   </div>
   <div class="row">
     <div>
-      <label for="profile-name">Neues Profil</label>
-      <input id="profile-name" type="text" autocomplete="off" placeholder="Name">
+      <label for="profile-name" data-i18n="menu.newProfile"></label>
+      <input id="profile-name" type="text" autocomplete="off"
+             data-i18n-placeholder="menu.namePlaceholder">
     </div>
-    <button id="profile-add">Anlegen</button>
+    <button id="profile-add" data-i18n="menu.add"></button>
   </div>
 
-  <h2>Einstellungen</h2>
+  <h2 data-i18n="menu.settings"></h2>
   <div>
-    <label for="threshold">Zeitschwelle in Sekunden</label>
+    <label for="threshold" data-i18n="menu.threshold"></label>
     <input id="threshold" type="number" min="1" max="30" step="0.5">
   </div>
+  <div>
+    <label for="language" data-i18n="menu.language"></label>
+    <select id="language"></select>
+  </div>
 
-  <h2>Fortschritt</h2>
+  <h2 data-i18n="menu.progress"></h2>
   <div id="stats"></div>
 
-  <h2>Alle 100 Aufgaben</h2>
+  <h2 data-i18n="menu.allCards"></h2>
   <ul id="box-legend"></ul>
   <p id="box-rules"></p>
   <div id="card-grid"></div>
   <p id="card-detail" aria-live="polite"></p>
 
-  <button id="menu-close">Zurück zum Üben</button>
+  <button id="menu-close" data-i18n="menu.close"></button>
 </section>
 
 <main id="trainer">
@@ -382,14 +389,14 @@
     </span>
   </div>
   <input id="answer" type="text" inputmode="numeric" autocomplete="off"
-         autocorrect="off" spellcheck="false" aria-label="Antwort">
-  <button id="confirm" type="button">OK</button>
+         autocorrect="off" spellcheck="false" data-i18n-aria-label="trainer.answerLabel">
+  <button id="confirm" type="button"></button>
   <div id="feedback" aria-live="polite"></div>
 </main>
 
 <div id="done" hidden>
-  <p>Alles gemeistert. Nichts steht zur Auffrischung an.</p>
-  <button id="freeplay">Trotzdem weiterüben</button>
+  <p data-i18n="done.all"></p>
+  <button id="freeplay" data-i18n="done.freeplay"></button>
 </div>
 
 <div id="progress"></div>
@@ -432,6 +439,7 @@
     profileAdd: document.getElementById('profile-add'),
     profileDelete: document.getElementById('profile-delete'),
     threshold: document.getElementById('threshold'),
+    language: document.getElementById('language'),
     menuClose: document.getElementById('menu-close'),
     stats: document.getElementById('stats'),
     boxLegend: document.getElementById('box-legend'),
@@ -442,7 +450,8 @@
 
   var state = ML.loadState(window.localStorage);
   if (!state.activeProfile) {
-    var created = ML.createProfile(state, 'Ich', Date.now());
+    var created = ML.createProfile(state,
+      ML.t(ML.DEFAULT_LANGUAGE, 'profile.defaultName'), Date.now(), ML.DEFAULT_LANGUAGE);
     state = created.state;
     ML.saveState(window.localStorage, state);
   }
@@ -455,6 +464,7 @@
     answered: 0,
     refreshesShown: 0,
     awaitingAck: false,    // waits for acknowledgement after a mistake
+    ackTimeUp: false,      // the standing acknowledgement came from the deadline
     freeplay: false,
     fromFreePlay: false,   // the current card comes from free practice
     sessionCounted: false  // only the first answer makes this a session
@@ -465,6 +475,43 @@
 
   function profile() { return state.profiles[state.activeProfile]; }
 
+  /* ---------- language ---------- */
+
+  function lang() { return profile().settings.lang; }
+
+  // Short bridge to ML.t so that every call site reads the same and nobody
+  // has to remember to pass the language.
+  function t(key, params) { return ML.t(lang(), key, params); }
+
+  // Attribute texts: the data attribute names the key, the second entry the
+  // attribute it fills.
+  var I18N_ATTRS = [
+    ['data-i18n-placeholder', 'placeholder'],
+    ['data-i18n-title', 'title'],
+    ['data-i18n-aria-label', 'aria-label']
+  ];
+
+  // Rewrites every marked node. Called at startup, on a language change and
+  // after a profile switch. Elements created in script carry the same data
+  // attributes, so the buttons in the toolbar are covered too — including the
+  // case where their title names the unsupported variant of the key.
+  function applyLanguage() {
+    document.documentElement.lang = ML.locale(lang()).htmlLang;
+    document.title = t('app.title');
+
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = t(nodes[i].getAttribute('data-i18n'));
+    }
+    for (var a = 0; a < I18N_ATTRS.length; a++) {
+      var marked = document.querySelectorAll('[' + I18N_ATTRS[a][0] + ']');
+      for (var j = 0; j < marked.length; j++) {
+        marked[j].setAttribute(I18N_ATTRS[a][1],
+          t(marked[j].getAttribute(I18N_ATTRS[a][0])));
+      }
+    }
+  }
+
   var storageWarningShown = false;
   function persist() {
     var ok = ML.saveState(window.localStorage, state);
@@ -472,8 +519,7 @@
       storageWarningShown = true;
       // Its own element: #feedback is rewritten on every answer and would have
       // overwritten the warning in the very same tick.
-      el.storageWarning.textContent =
-        'Achtung: Der Fortschritt kann in diesem Browser nicht gespeichert werden.';
+      el.storageWarning.textContent = t('storage.warning');
       el.storageWarning.hidden = false;
     }
   }
@@ -621,7 +667,7 @@
   }
 
   function render() {
-    el.progress.textContent = 'noch ' + ML.openCount(profile()) + ' von 100 offen';
+    el.progress.textContent = t('trainer.progress', { n: ML.openCount(profile()) });
   }
 
   function nextQuestion() {
@@ -660,12 +706,13 @@
     session.expected = ab.a * ab.b;
     session.startedAt = Date.now();
     session.awaitingAck = false;
+    session.ackTimeUp = false;
     session.fromFreePlay = fromFreePlay;
 
     el.question.textContent = ab.a + ' × ' + ab.b;
     el.answer.value = '';
     el.feedback.textContent = '';
-    el.confirm.textContent = 'OK';
+    el.confirm.textContent = t('trainer.ok');
     // Do not focus the invisible field behind the open menu — on a phone that
     // pulled the numeric keyboard up over the menu.
     if (el.menu.hidden) el.answer.focus();
@@ -676,7 +723,7 @@
       session.startedAt = 0;
       isReadingAloud = true;
       stopListening();
-      speak(ML.spokenQuestion(ab.a, ab.b), function () {
+      speak(ML.spokenQuestion(ab.a, ab.b, lang()), function () {
         isReadingAloud = false;
         if (session.currentKey !== key) {
           // The question has changed meanwhile: this callback must not touch
@@ -698,6 +745,13 @@
     // Last, so that both branches are covered: in the reading branch startedAt
     // is 0 and the bar rests, otherwise it runs from here on.
     updateTimer();
+  }
+
+  // The sentence that stands while the mistake is shown. Its own function
+  // because a language change has to be able to rewrite it.
+  function ackFeedbackText() {
+    return t(session.ackTimeUp ? 'trainer.wrongTimeUp' : 'trainer.wrong',
+             { expected: session.expected });
   }
 
   // elapsedMs can be overridden (voice mode measures differently).
@@ -748,9 +802,9 @@
       nextQuestion();
     } else {
       showFlash('bad');
-      el.feedback.textContent = (timeUp ? 'Zeit ist um. ' : '') +
-        'Richtig wäre ' + session.expected + ' — mit Enter oder dem Knopf weiter';
-      el.confirm.textContent = 'Weiter';
+      session.ackTimeUp = timeUp;
+      el.feedback.textContent = ackFeedbackText();
+      el.confirm.textContent = t('trainer.next');
       session.awaitingAck = true;
       stopListening();   // do not listen while the mistake is shown
       render();
@@ -850,10 +904,10 @@
   ttsButton.id = 'tts-toggle';
   ttsButton.type = 'button';
   ttsButton.textContent = '🔊';
-  ttsButton.title = 'Aufgabe vorlesen';
+  ttsButton.setAttribute('data-i18n-title', 'toolbar.tts');
   if (!tts.supported) {
     ttsButton.disabled = true;
-    ttsButton.title = 'Dieser Browser kann nicht vorlesen';
+    ttsButton.setAttribute('data-i18n-title', 'toolbar.ttsUnsupported');
   }
   el.toolbar.appendChild(ttsButton);
 
@@ -888,7 +942,7 @@
       updateTimer();   // clock stopped: the bar rests too
       isReadingAloud = true;
       stopListening();
-      speak(ML.spokenQuestion(ab.a, ab.b), function () {
+      speak(ML.spokenQuestion(ab.a, ab.b, lang()), function () {
         isReadingAloud = false;
         if (session.currentKey !== key) {
           // Question changed: leave the clock alone, but start listening again
@@ -972,7 +1026,7 @@
         ? alts[i].confidence.toFixed(2)
         : '?';
       parts.push('\u201e' + alts[i].transcript + '\u201c\u27e8' + confidence + '\u27e9\u2192['
-        + ML.parseGermanNumbers(alts[i].transcript).join(',') + ']');
+        + ML.parseNumbers(alts[i].transcript, lang()).join(',') + ']');
     }
     return parts.length === 0 ? '(no alternative)' : parts.join(' | ');
   }
@@ -1001,13 +1055,13 @@
     echoTimer: null
   };
 
-  var MIC_TEXTS = {};
-  MIC_TEXTS[ML.MIC_PAUSED] = 'Mikrofon pausiert';
-  MIC_TEXTS[ML.MIC_READING] = 'Noch nicht sprechen';
-  MIC_TEXTS[ML.MIC_STARTING] = 'Mikrofon startet …';
-  MIC_TEXTS[ML.MIC_READY] = 'Jetzt sprechen';
-  MIC_TEXTS[ML.MIC_HEARING] = 'Ich höre dich';
-  MIC_TEXTS[ML.MIC_PROCESSING] = 'Einen Moment …';
+  var MIC_TEXT_KEYS = {};
+  MIC_TEXT_KEYS[ML.MIC_PAUSED] = 'mic.paused';
+  MIC_TEXT_KEYS[ML.MIC_READING] = 'mic.reading';
+  MIC_TEXT_KEYS[ML.MIC_STARTING] = 'mic.starting';
+  MIC_TEXT_KEYS[ML.MIC_READY] = 'mic.ready';
+  MIC_TEXT_KEYS[ML.MIC_HEARING] = 'mic.hearing';
+  MIC_TEXT_KEYS[ML.MIC_PROCESSING] = 'mic.processing';
 
   // Which bar shape belongs to which state. "waiting" is the calm base shape
   // for everything that asks the child to wait.
@@ -1062,7 +1116,7 @@
       micClearEcho();
       return;
     }
-    micWrite(MIC_SHAPES[state], MIC_TEXTS[state]);
+    micWrite(MIC_SHAPES[state], t(MIC_TEXT_KEYS[state]));
   }
 
   function micClearEcho() {
@@ -1079,7 +1133,7 @@
     if (clean.length > MIC_ECHO_MAX_CHARS) {
       clean = clean.slice(0, MIC_ECHO_MAX_CHARS) + '…';
     }
-    el.micHeard.textContent = 'gehört: „' + clean + '“';
+    el.micHeard.textContent = t('mic.heard', { text: clean });
     mic.echoTimer = setTimeout(function () {
       mic.echoTimer = null;
       el.micHeard.textContent = '';
@@ -1125,7 +1179,7 @@
       if (stt.consecutiveErrors >= STT_MAX_CONSECUTIVE_ERRORS) {
         sttLog(runId, card, 'watchdog gives up after ' + stt.consecutiveErrors + ' attempts');
         setSttActive(false);
-        el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
+        el.feedback.textContent = t('mic.broken');
         return;
       }
       sttLog(runId, card, 'watchdog: ' + reason + ' — restart (' + stt.consecutiveErrors + ')');
@@ -1269,7 +1323,7 @@
       var candidates = [];
       var candidateTexts = [];   // for the display only, never for grading
       for (var i = 0; i < alts.length; i++) {
-        var numbers = ML.parseGermanNumbers(alts[i].transcript);
+        var numbers = ML.parseNumbers(alts[i].transcript, lang());
         if (numbers.length > 0) {
           candidates.push(numbers);
           candidateTexts.push(alts[i].transcript);
@@ -1282,8 +1336,8 @@
         sttLog(runId, forCard, 'no number in ' + alts.length
           + ' alternative(s) \u2014 not graded, asking again');
         micSetEcho(alts.length > 0 ? alts[0].transcript : '');
-        micReport('error', 'Keine Zahl verstanden');
-        retryUnderstood('Nicht verstanden — bitte nochmal');
+        micReport('error', t('mic.noNumber'));
+        retryUnderstood(t('mic.notUnderstood'));
         return;
       }
       // If the correct number appears anywhere in any alternative, it counts.
@@ -1306,7 +1360,7 @@
       // is wrong. The message has to stand before submitAnswer: otherwise the
       // next question follows in the same tick and overwrites it.
       micSetEcho(candidateTexts[chosen]);
-      micReport('understood', 'Verstanden: ' + value);
+      micReport('understood', t('mic.understood', { value: value }));
 
       var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
       if (session.startedAt === 0) elapsed = 0;
@@ -1332,7 +1386,7 @@
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         stt.permissionDenied = true;
         setSttActive(false);
-        el.feedback.textContent = 'Kein Zugriff auf das Mikrofon — Tastatur geht weiter';
+        el.feedback.textContent = t('mic.denied');
         return;
       }
       // no-speech, audio-capture, network, aborted: grade nothing, listen again.
@@ -1342,15 +1396,15 @@
       stt.consecutiveErrors++;
       if (stt.consecutiveErrors >= STT_MAX_CONSECUTIVE_ERRORS) {
         setSttActive(false);
-        el.feedback.textContent = 'Mikrofon funktioniert gerade nicht — bitte tippen';
+        el.feedback.textContent = t('mic.broken');
         return;
       }
       if (event.error === 'no-speech') {
-        micReport('error', 'Nichts gehört');
-        retryUnderstood('Nichts gehört — bitte nochmal');
+        micReport('error', t('mic.nothingHeard'));
+        retryUnderstood(t('mic.nothingHeardRetry'));
       } else {
-        micReport('error', 'Mikrofon-Problem');
-        retryUnderstood('Mikrofon-Problem — bitte nochmal');
+        micReport('error', t('mic.problem'));
+        retryUnderstood(t('mic.problemRetry'));
       }
     });
 
@@ -1455,10 +1509,10 @@
     sttButton.id = 'stt-toggle';
     sttButton.type = 'button';
     sttButton.textContent = '🎤';
-    sttButton.title = 'Antwort sprechen';
+    sttButton.setAttribute('data-i18n-title', 'toolbar.stt');
     if (!stt.secure) {
       sttButton.disabled = true;
-      sttButton.title = 'Das Mikrofon braucht HTTPS — über GitHub Pages oder localhost öffnen';
+      sttButton.setAttribute('data-i18n-title', 'toolbar.sttInsecure');
     }
     el.toolbar.appendChild(sttButton);
     sttButton.addEventListener('click', function () {
@@ -1477,7 +1531,7 @@
   menuButton.id = 'menu-button';
   menuButton.type = 'button';
   menuButton.textContent = '☰';
-  menuButton.title = 'Profile und Einstellungen';
+  menuButton.setAttribute('data-i18n-title', 'toolbar.menu');
   el.toolbar.appendChild(menuButton);
 
   function renderStats() {
@@ -1490,45 +1544,38 @@
     });
     timed.sort(function (a, b) { return b.ms - a.ms; });
 
-    var html = '<div>offen: <strong>' + ML.openCount(p) + '</strong> von 100' +
-               ' &middot; gemeistert: <strong>' + boxes[ML.BOX_MASTERED] + '</strong></div>' +
-               '<div>Antworten insgesamt: ' + p.stats.totalAnswers +
-               ' &middot; Sitzungen: ' + p.stats.sessions + '</div>';
+    // Only numbers from our own code go into innerHTML, never a profile name.
+    var strong = function (n) { return '<strong>' + n + '</strong>'; };
+    var html = '<div>' + t('stats.open', { n: strong(ML.openCount(p)) }) +
+               ' &middot; ' + t('stats.mastered', { n: strong(boxes[ML.BOX_MASTERED]) }) + '</div>' +
+               '<div>' + t('stats.totalAnswers', { n: p.stats.totalAnswers }) +
+               ' &middot; ' + t('stats.sessions', { n: p.stats.sessions }) + '</div>';
 
     if (timed.length > 0) {
-      html += '<div style="margin-top:.6rem">Langsamste offene Aufgaben</div><table>';
+      html += '<div style="margin-top:.6rem">' + t('stats.slowest') + '</div><table>';
       timed.slice(0, 5).forEach(function (row) {
         var ab = ML.parseCardKey(row.key);
         html += '<tr><td>' + ab.a + ' × ' + ab.b + '</td><td>' +
-                ML.timeText(row.ms) + '</td></tr>';
+                ML.timeText(row.ms, lang()) + '</td></tr>';
       });
       html += '</table>';
     }
     el.stats.innerHTML = html;
   }
 
-  // What a box means — in one sentence a child understands too. The order is
-  // the box number. The refresh intervals come from REFRESH_INTERVALS_MS so
-  // that the text cannot diverge from the code.
-  var REFRESH_DAYS_TEXT = ML.REFRESH_INTERVALS_MS.map(function (ms) {
-    return ms / ML.DAY_MS;
-  }).join(', dann ');
+  // What a box means — in one sentence a child understands too. Functions
+  // rather than constants, because the language is only known at drawing
+  // time. The refresh intervals come from REFRESH_INTERVALS_MS so that the
+  // text cannot diverge from the code.
+  function refreshDaysText() {
+    return ML.REFRESH_INTERVALS_MS.map(function (ms) {
+      return ms / ML.DAY_MS;
+    }).join(t('box.refreshDaysJoin'));
+  }
 
-  var BOX_EXPLANATIONS = [
-    'Noch nie richtig und schnell genug beantwortet — oder zuletzt danebengegangen.',
-    'Einmal richtig und schnell genug geschafft.',
-    'Zweimal hintereinander richtig und schnell genug — fehlt noch einmal.',
-    'Dreimal geschafft. Kommt nur noch zur Auffrischung dran: nach ' +
-      REFRESH_DAYS_TEXT + ' Tagen.'
-  ];
-
-  var BOX_RULES_TEXT =
-    'So wandern die Aufgaben: richtig und schnell genug — eine Box weiter. ' +
-    'Richtig, aber zu langsam — die Aufgabe bleibt stehen, geht aber auch nicht ' +
-    'zurück. Falsch — zurück in Box 0. Ein ↻ statt des Hakens heißt: Diese ' +
-    'gemeisterte Aufgabe ist zur Auffrischung fällig.';
-
-  var DETAIL_HINT = 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.';
+  function boxExplanation(box) {
+    return t('box.explain.' + box, { days: refreshDaysText() });
+  }
 
   // Turns an element into a filled card vessel. Needed for the legend and for
   // each of the 100 grid cells.
@@ -1548,8 +1595,9 @@
 
   function renderBoxLegend() {
     var boxes = ML.boxDistribution(profile());
+    var names = ML.boxNames(lang());
     el.boxLegend.innerHTML = '';
-    BOX_EXPLANATIONS.forEach(function (explanation, box) {
+    for (var box = 0; box <= ML.BOX_MASTERED; box++) {
       var li = document.createElement('li');
       li.appendChild(buildLevel(document.createElement('span'), box, false));
 
@@ -1559,30 +1607,30 @@
       head.className = 'head';
       var name = document.createElement('span');
       name.className = 'name';
-      name.textContent = ML.BOX_NAMES[box] + ' · Box ' + box;
+      name.textContent = t('box.legendName', { name: names[box], box: box });
       var count = document.createElement('span');
       count.className = 'count';
-      count.textContent = boxes[box] === 1 ? '1 Aufgabe' : boxes[box] + ' Aufgaben';
+      count.textContent = t('box.count', { n: boxes[box] });
       head.appendChild(name);
       head.appendChild(count);
 
       var sentence = document.createElement('span');
       sentence.className = 'explanation';
-      sentence.textContent = explanation;
+      sentence.textContent = boxExplanation(box);
 
       text.appendChild(head);
       text.appendChild(document.createElement('br'));
       text.appendChild(sentence);
       li.appendChild(text);
       el.boxLegend.appendChild(li);
-    });
-    el.boxRules.textContent = BOX_RULES_TEXT;
+    }
+    el.boxRules.textContent = t('box.rules');
   }
 
   // The 10×10 grid: row = first factor, column = second factor.
   // It only displays — it grades nothing and writes nothing.
   function renderGrid() {
-    var views = ML.cardViews(profile(), Date.now());
+    var views = ML.cardViews(profile(), Date.now(), lang());
     var byKey = {};
     views.forEach(function (v) { byKey[v.key] = v; });
 
@@ -1632,7 +1680,7 @@
     el.cardGrid.innerHTML = '';
     el.cardGrid.appendChild(table);
     // A freshly built grid no longer has a selection.
-    el.cardDetail.textContent = DETAIL_HINT;
+    el.cardDetail.textContent = t('grid.hint');
     el.cardDetail.classList.remove('active');
   }
 
@@ -1659,7 +1707,7 @@
     el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
     // An armed delete must not survive a change of context.
     deleteConfirmPending = false;
-    el.profileDelete.textContent = 'Löschen';
+    el.profileDelete.textContent = t('menu.delete');
     renderStats();
     renderBoxLegend();
     renderGrid();
@@ -1724,7 +1772,7 @@
   el.profileAdd.addEventListener('click', function () {
     var name = el.profileName.value.trim();
     if (name === '') return;
-    var created = ML.createProfile(state, name, Date.now());
+    var created = ML.createProfile(state, name, Date.now(), ML.DEFAULT_LANGUAGE);
     state = created.state;
     persist();
     el.profileName.value = '';
@@ -1738,7 +1786,7 @@
     if (!deleteConfirmPending) {
       // The first click only asks; a profile is weeks of progress.
       deleteConfirmPending = true;
-      el.profileDelete.textContent = 'Wirklich löschen?';
+      el.profileDelete.textContent = t('menu.deleteConfirm');
       return;
     }
     state = ML.deleteProfile(state, el.profileSelect.value);
@@ -1755,6 +1803,10 @@
     persist();
   });
 
+  // The toolbar buttons are created above, so this call catches them too;
+  // document.title and <html lang> are right from the first paint on.
+  applyLanguage();
+
   // The session is only counted on the first answer (see submitAnswer).
   renderTtsButton();
   renderSttButton();
@@ -1763,6 +1815,8 @@
   window.__app = { session: session, nextQuestion: nextQuestion,
                    submitAnswer: submitAnswer, render: render,
                    profile: profile, persist: persist,
+                   lang: lang, t: t, applyLanguage: applyLanguage,
+                   ackFeedbackText: ackFeedbackText,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
                    renderGrid: renderGrid, renderStats: renderStats,
                    renderTtsButton: renderTtsButton, speak: speak,
