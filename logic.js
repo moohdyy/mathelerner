@@ -165,6 +165,7 @@
         'mic.notUnderstood': 'Nicht verstanden — bitte nochmal',
         'mic.nothingHeard': 'Nichts gehört',
         'mic.nothingHeardRetry': 'Nichts gehört — bitte nochmal',
+        'mic.lost': 'Nicht verstanden',
         'mic.problem': 'Mikrofon-Problem',
         'mic.problemRetry': 'Mikrofon-Problem — bitte nochmal',
         'mic.broken': 'Mikrofon funktioniert gerade nicht — bitte tippen',
@@ -273,6 +274,7 @@
         'mic.notUnderstood': 'Not understood — please try again',
         'mic.nothingHeard': 'Nothing heard',
         'mic.nothingHeardRetry': 'Nothing heard — please try again',
+        'mic.lost': 'Not understood',
         'mic.problem': 'Microphone problem',
         'mic.problemRetry': 'Microphone problem — please try again',
         'mic.broken': 'The microphone is not working right now — please type',
@@ -427,6 +429,100 @@
   function parseNumber(text, lang) {
     var all = parseNumbers(text, lang);
     return all.length > 0 ? all[0] : null;
+  }
+
+  // The alternatives of one segment as trimmed strings, empty ones removed.
+  function segmentTexts(segment) {
+    var raw = (segment && segment.alternatives) || [];
+    var texts = [];
+    for (var i = 0; i < raw.length; i++) {
+      var text = String(raw[i] === null || raw[i] === undefined ? '' : raw[i]).trim();
+      if (text !== '') texts.push(text);
+    }
+    return texts;
+  }
+
+  // Which value out of a recognition result is graded — and whether anything
+  // may be graded at all yet. This decision used to sit in the event handler,
+  // where it was neither testable nor visible. It is one of the two places
+  // where a misjudgement permanently damages a card, so it belongs here.
+  //
+  // `segments` is the recognition result reduced to plain data: per segment
+  // whether it is final and its alternatives in order. No DOM type reaches
+  // this function.
+  //
+  // Three outcomes:
+  //   'pending' — the utterance is not finished; grade nothing, show `heard`.
+  //   'none'    — it is finished and holds no number; ask again, grade nothing.
+  //   'value'   — `value` is the answer, `text` the wording it came from.
+  //
+  // `assumeFinal` treats every segment as finished. The end of a listening
+  // pass uses it: some engines end without ever setting isFinal, and then this
+  // is the last moment at which the utterance is still worth anything.
+  function chooseSpokenAnswer(segments, opts) {
+    var o = opts || {};
+    var list = segments || [];
+    var out = { status: 'pending', value: null, alternative: 0, text: '', heard: '' };
+    if (list.length === 0) return out;
+
+    // Rank 0 of every segment, joined: what the recogniser currently holds.
+    // It is shown to the child even while nothing is graded.
+    var heard = [];
+    for (var i = 0; i < list.length; i++) {
+      var texts = segmentTexts(list[i]);
+      if (texts.length > 0) heard.push(texts[0]);
+    }
+    out.heard = heard.join(' ');
+
+    // As long as the last segment is still running, the child is still
+    // speaking — and a prefix of the answer must never be graded. "4" stands
+    // there long before "45" does.
+    var last = list[list.length - 1];
+    if (!o.assumeFinal && !(last && last.final)) return out;
+
+    var graded = [];
+    for (i = 0; i < list.length; i++) {
+      if (o.assumeFinal || (list[i] && list[i].final)) graded.push(segmentTexts(list[i]));
+    }
+    if (graded.length === 0) return out;
+
+    // One candidate per alternative rank, built across ALL graded segments —
+    // the answer may well sit in a later one. A segment with fewer
+    // alternatives contributes its last.
+    var ranks = 0;
+    for (i = 0; i < graded.length; i++) if (graded[i].length > ranks) ranks = graded[i].length;
+    if (ranks === 0) { out.status = 'none'; return out; }
+
+    var candidates = [];
+    for (var r = 0; r < ranks; r++) {
+      var parts = [];
+      for (i = 0; i < graded.length; i++) {
+        if (graded[i].length === 0) continue;
+        parts.push(graded[i][Math.min(r, graded[i].length - 1)]);
+      }
+      var text = parts.join(' ');
+      var numbers = parseNumbers(text, o.lang);
+      if (numbers.length > 0) candidates.push({ rank: r, text: text, numbers: numbers });
+    }
+    if (candidates.length === 0) { out.status = 'none'; return out; }
+
+    // If the expected number appears anywhere in any alternative, it counts.
+    var pick = null;
+    for (i = 0; i < candidates.length && pick === null; i++) {
+      if (candidates[i].numbers.indexOf(o.expected) !== -1) pick = candidates[i];
+    }
+    // Otherwise the LAST number of the first usable alternative counts:
+    // whoever says the whole sum out loud means their result with the last
+    // number.
+    if (pick === null) pick = candidates[0];
+
+    out.status = 'value';
+    out.value = pick.numbers.indexOf(o.expected) !== -1
+      ? o.expected
+      : pick.numbers[pick.numbers.length - 1];
+    out.alternative = pick.rank;
+    out.text = pick.text;
+    return out;
   }
 
   function spokenQuestion(a, b, lang) {
@@ -871,6 +967,7 @@
     _spellEnglish: spellEnglish,
     parseNumber: parseNumber,
     parseNumbers: parseNumbers,
+    chooseSpokenAnswer: chooseSpokenAnswer,
     _spellGerman: spellGerman,
     spokenQuestion: spokenQuestion,
     BOX_MASTERED: BOX_MASTERED,

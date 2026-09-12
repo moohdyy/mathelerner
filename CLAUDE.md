@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 128 Tests)
+node --test                          # gesamte Suite (aktuell 148 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -43,17 +43,19 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 128 Tests.
+testbar, und genau daran hängen die 148 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
 `import`/`export`, sonst brechen die Tests.
 
 Wer eine neue Entscheidungslogik in `index.html` schreibt, sollte prüfen, ob
-sie nicht als reine Funktion nach `logic.js` gehört. Die beiden Stellen, an
-denen eine Fehlbewertung dauerhaften Schaden anrichtet — welcher Wert aus den
-Erkennungsalternativen gewertet wird und ob eine Antwort zählt — liegen
-derzeit noch in `index.html`.
+sie nicht als reine Funktion nach `logic.js` gehört. Von den beiden Stellen,
+an denen eine Fehlbewertung dauerhaften Schaden anrichtet, liegt nur noch eine
+in `index.html`: ob eine Antwort zählt. Welcher Wert aus einem
+Erkennungsergebnis gewertet wird, rechnet `ML.chooseSpokenAnswer` — sie hat
+genau deshalb den Weg nach `logic.js` genommen, weil sie in `index.html`
+unsichtbar und ungetestet falsch lag.
 
 ## Fachlogik, die man leicht falsch macht
 
@@ -94,6 +96,9 @@ sind mehrfach falsch umgesetzt worden:
   🔊-Handler, `closeMenu` und `retryUnderstood`.
 - Die Zeit wird bis `onspeechend` gemessen, **nicht** bis zum Erkennungs­ergebnis
   — die Erkennungslatenz von 0,5–1,5 s darf nicht in die Lernzeit einfließen.
+  `retryUnderstood` muss `stt.spokeEndAt` dabei mit zurücksetzen: der gemessene
+  Sprechschluss gehört zum verworfenen Versuch und läge sonst *vor* dem neuen
+  Uhrenstart — ein danach noch eintreffendes Ergebnis würde mit 0 ms gewertet.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.
@@ -101,6 +106,33 @@ sind mehrfach falsch umgesetzt worden:
   keine Zahl erkannt, Mikrofon streikt, Netzwerk weg → Karte unverändert,
   Aufgabe erneut stellen. Ein Kind mit schlechtem Mikrofon würde sonst in
   Minuten wochenlangen Lernfortschritt zerstören.
+- **Ein unfertiges Erkennungsergebnis wertet nichts.** Der Erkenner liefert
+  wachsende Präfixe — „4“ steht sekundenlang da, bevor „45“ daraus wird. Wer
+  das erste Ergebnis mit einer Zahl wertet, wertet das Präfix und wirft die
+  Karte auf Box 0, während die richtige Antwort vier Millisekunden später
+  eintrifft. `ML.chooseSpokenAnswer` entscheidet das: gewertet wird erst, wenn
+  das **letzte** Segment `isFinal` trägt. `rec.interimResults = false`
+  schützt nicht davor — die On-Device-Erkennung ignoriert das Flag, deshalb
+  steht es jetzt bewusst auf `true` und die Zwischenstände speisen nur die
+  Anzeige.
+- **Gewertet wird über alle finalen Segmente, nicht über `results[0]`.**
+  Zerfällt die Äußerung, steht die Antwort im zweiten Segment („das
+  frustrierend“ | „18“) und `results[0]` enthält nur Füllwörter. Die Karte
+  bliebe ungewertet, obwohl die Zahl genannt wurde.
+- **Ein Durchgang, der nach Sprache ohne Ergebnis endet, ist ein
+  Erkennungsfehler.** Er kommt ohne `error` und ohne `result` — nur `end`.
+  Wer ihn als Nicht-Ereignis behandelt, lässt das Kind vor „Einen Moment …“
+  stehen, während die Uhr weiter gegen die Gesamtfrist läuft; der Fristablauf
+  wertet die Karte dann **falsch**, obwohl das Kind gesprochen hat. Der
+  `end`-Handler muss deshalb dasselbe tun wie `no-speech`: melden und
+  `retryUnderstood` — also die Uhr zurückstellen. Sind Segmente da, die nie
+  final wurden, finalisiert er sie (`assumeFinal`), sonst wäre bei einem
+  Erkenner ohne `isFinal` das Mikrofon dauerhaft taub.
+- **Nach einem Zwischenergebnis gilt die lange Watchdog-Frist.** Nach einem
+  finalen folgt `end` sofort, nach einem unfertigen spricht das Kind noch.
+  Mit der kurzen Frist schießt der Watchdog die laufende Äußerung ab, sobald
+  jemand drei Sekunden überlegt — im Log als „watchdog: no end after result“
+  mitten in einer Antwort zu sehen.
 - **`STATE_VERSION` bleibt 1.** Ein Versionssprung lässt `loadState` alle
   Profile verwerfen — wochenlanger Fortschritt für ein neues Feld. Ein
   fehlendes `settings.lang` wird beim Lesen geheilt, nicht durch einen
@@ -203,6 +235,15 @@ und -eingabe lassen sich dabei durch Attrappen ersetzen, sodass auch
 Fehlerpfade und Zeitverhalten messbar sind. Berichte über UI-Verhalten sind
 ohne solche Messung nicht belastbar — mehrfach sahen Fixes im Code korrekt aus
 und wirkten trotzdem nicht.
+
+Eine brauchbare Attrappe für `SpeechRecognition` muss mehr können als ein
+fertiges Ergebnis liefern. Die Fälle, in denen die Wertung tatsächlich
+schiefging, sind genau die unbequemen: wachsende Zwischenergebnisse, ein
+Ergebnis in einem zweiten Segment, ein Durchgang der nie `isFinal` setzt, und
+einer der nach `speechend` nur noch `end` meldet. Eine Attrappe ohne diese
+vier prüft den Normalfall, der ohnehin nie kaputt war. Die Sprache der
+Prüfung ist dabei nicht deutsch: headless Chrome meldet `en`, also gegen
+`ML.t` vergleichen statt gegen feste Texte.
 
 Für die Sprachschicht haben sich zwei Prüfungen als die aussagekräftigen
 erwiesen, und beide laufen über das DOM, nicht über Augenmaß: erstens, dass

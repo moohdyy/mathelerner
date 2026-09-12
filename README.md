@@ -103,9 +103,10 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-128 Tests abgedeckt: Zahlenparser in beiden Sprachen, Sprachpakete und
+148 Tests abgedeckt: Zahlenparser in beiden Sprachen, Sprachpakete und
 Übersetzer, Scheduler, die zweistufige Zeitanzeige, Speicherschicht, der
-Anzeigezustand des Mikrofons und die Fortschrittsanzeige in `logic.js`.
+Anzeigezustand des Mikrofons, die Auswahl des gewerteten Werts aus einem
+Erkennungsergebnis und die Fortschrittsanzeige in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 

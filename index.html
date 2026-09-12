@@ -1067,6 +1067,31 @@
     return parts.length === 0 ? '(no alternative)' : parts.join(' | ');
   }
 
+  // Every segment with its isFinal, because that flag decides whether anything
+  // may be graded at all. Without it in the log, a prefix graded too early
+  // looks exactly like a genuine misrecognition.
+  function sttResultLog(results) {
+    var parts = [];
+    for (var i = 0; i < results.length; i++) {
+      parts.push('[' + i + (results[i].isFinal ? ' final' : ' interim') + '] '
+        + sttTranscripts(results[i]));
+    }
+    return parts.length === 0 ? '(no segment)' : parts.join(' || ');
+  }
+
+  // The recognition result as plain data — isFinal plus the alternatives in
+  // order. No DOM type reaches ML.chooseSpokenAnswer, and nothing here
+  // pre-judges which value counts.
+  function sttSegments(results) {
+    var segments = [];
+    for (var i = 0; i < results.length; i++) {
+      var alternatives = [];
+      for (var a = 0; a < results[i].length; a++) alternatives.push(results[i][a].transcript);
+      segments.push({ final: results[i].isFinal === true, alternatives: alternatives });
+    }
+    return segments;
+  }
+
   /* ---------- Status display of the microphone ---------- */
 
   // The display is pure feedback: it grades no card, submits no answer and
@@ -1274,9 +1299,68 @@
     var rec = new SR();
     rec.lang = ML.locale(lang()).speechLang;
     rec.continuous = false;
-    rec.interimResults = false;
+    // The on-device recogniser streams its result as growing prefixes and
+    // ignores a false here — observed as "4" seconds before "45". Asking for
+    // interim results makes that visible instead of pretending it does not
+    // happen: they feed the display, and ML.chooseSpokenAnswer keeps them out
+    // of the grading.
+    rec.interimResults = true;
     rec.maxAlternatives = 5;
     requestLocalProcessing(rec);
+
+    // What this pass has seen. Per pass, not shared: a late event of a
+    // superseded recogniser must not be able to report anything about the
+    // current one.
+    var pass = {
+      segments: [],     // latest snapshot of the recognition result
+      sawSpeech: false, // was there speech at all in this pass?
+      handled: false    // has this pass already graded or reported?
+    };
+
+    // The single route from a recognition result into the grading — the result
+    // event and the end of the pass both take it, so the two cannot drift
+    // apart. Returns the outcome of ML.chooseSpokenAnswer.
+    function applyResult(assumeFinal) {
+      var out = ML.chooseSpokenAnswer(pass.segments, {
+        expected: session.expected,
+        lang: lang(),
+        assumeFinal: assumeFinal
+      });
+      if (out.status === 'pending') {
+        // The child is still speaking. Show what stands there so far — that is
+        // the proof the microphone is working — but grade nothing: a prefix of
+        // the answer would cost the card a box.
+        if (out.heard !== '') micSetEcho(out.heard);
+        return out.status;
+      }
+      pass.handled = true;
+      mic.speaking = false;
+      mic.processing = false;
+      if (out.status === 'none') {
+        // The recogniser heard something, just no number in it. Exactly that
+        // has to become visible — otherwise the child is left guessing what
+        // went wrong.
+        sttLog(runId, forCard, 'no number in \u201e' + out.heard
+          + '\u201c \u2014 not graded, asking again');
+        micSetEcho(out.heard);
+        micReport('error', t('mic.noNumber'));
+        retryUnderstood(t('mic.notUnderstood'));
+        return out.status;
+      }
+      // What is shown is the wording the graded value came from — even when it
+      // is wrong. The message has to stand before submitAnswer: otherwise the
+      // next question follows in the same tick and overwrites it.
+      micSetEcho(out.text);
+      micReport('understood', t('mic.understood', { value: out.value }));
+
+      var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
+      if (session.startedAt === 0) elapsed = 0;
+      sttLog(runId, forCard, 'graded: ' + out.value + ' from alternative '
+        + out.alternative + ' \u201e' + out.text + '\u201c, expected ' + session.expected
+        + ', ' + elapsed + ' ms of ' + sttThresholdMs() + ' ms');
+      submitAnswer(out.value, elapsed, sttThresholdMs());
+      return out.status;
+    }
 
     // 'start' and 'audiostart' are the evidence that the pass is really
     // running. Without that evidence the code used to wait for an 'end' that
@@ -1306,6 +1390,10 @@
       return rec === stt.recognizer && forCard === session.currentKey;
     }
     function speechStarted() {
+      // Noted before the display guard: whether this pass heard speech decides
+      // later whether a silent end is a failure or a non-event, and that is
+      // true even for a pass whose display no longer belongs to it.
+      pass.sawSpeech = true;
       if (!validForDisplay()) return;
       mic.speaking = true;
       mic.processing = false;
@@ -1339,18 +1427,19 @@
     });
 
     rec.addEventListener('result', function (event) {
-      // Grading always uses results[0]. Chrome may report several results
-      // within one pass, though; resultIndex then points at a later segment
-      // that never enters the grading here. Both belong in the log, otherwise
-      // it stays unclear which part of the utterance was graded.
-      var alts = event.results[0];
-      sttLog(runId, forCard, 'result [graded segment 0 of ' + event.results.length
-        + ', resultIndex ' + event.resultIndex + ']: ' + sttTranscripts(alts));
-      if (event.results.length > 1 && event.resultIndex > 0) {
-        sttLog(runId, forCard, 'result: ungraded segment ' + event.resultIndex
-          + ': ' + sttTranscripts(event.results[event.resultIndex]));
-      }
-      sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after result');
+      // The whole result is kept, not just results[0]: the answer may sit in a
+      // later segment, and the end of the pass needs the last state too.
+      pass.segments = sttSegments(event.results);
+      sttLog(runId, forCard, 'result: ' + sttResultLog(event.results));
+      // After a FINAL result the end follows right away, so the short deadline
+      // fits. After an interim one it does not: the child is still speaking,
+      // and thinking for three seconds between two interim results would have
+      // the watchdog shoot down the running utterance. Observed exactly that
+      // way — "watchdog: no end after result" in the middle of an answer.
+      var finished = pass.segments.length > 0
+        && pass.segments[pass.segments.length - 1].final;
+      sttHeartbeat(rec, finished ? STT_START_TIMEOUT_MS : STT_ALIVE_TIMEOUT_MS,
+                   finished ? 'no end after result' : 'no end after interim result');
       // Results of a pass belonging to a different question must not grade
       // this question.
       if (forCard !== session.currentKey) {
@@ -1358,61 +1447,17 @@
           + (session.currentKey === null ? '\u2014' : session.currentKey) + ')');
         return;
       }
-      mic.speaking = false;
-      mic.processing = false;
+      // A result of any kind proves the recogniser works — including an
+      // interim one, which is why this stands before the grading.
       stt.consecutiveErrors = 0;
-      var candidates = [];
-      var candidateTexts = [];   // for the display only, never for grading
-      for (var i = 0; i < alts.length; i++) {
-        var numbers = ML.parseNumbers(alts[i].transcript, lang());
-        if (numbers.length > 0) {
-          candidates.push(numbers);
-          candidateTexts.push(alts[i].transcript);
-        }
-      }
-      if (candidates.length === 0) {
-        // The recogniser heard something, just no number in it. Exactly that
-        // has to become visible — otherwise the child is left guessing what
-        // went wrong.
-        sttLog(runId, forCard, 'no number in ' + alts.length
-          + ' alternative(s) \u2014 not graded, asking again');
-        micSetEcho(alts.length > 0 ? alts[0].transcript : '');
-        micReport('error', t('mic.noNumber'));
-        retryUnderstood(t('mic.notUnderstood'));
-        return;
-      }
-      // If the correct number appears anywhere in any alternative, it counts.
-      var value = null;
-      var chosen = 0;   // which alternative delivered the value
-      for (var j = 0; j < candidates.length && value === null; j++) {
-        if (candidates[j].indexOf(session.expected) !== -1) {
-          value = session.expected;
-          chosen = j;
-        }
-      }
-      if (value === null) {
-        // Otherwise the LAST number of the first alternative counts: whoever
-        // says the whole sum out loud means their result with the last number.
-        var first = candidates[0];
-        value = first[first.length - 1];
-      }
-
-      // What is shown is the wording the graded value came from — even when it
-      // is wrong. The message has to stand before submitAnswer: otherwise the
-      // next question follows in the same tick and overwrites it.
-      micSetEcho(candidateTexts[chosen]);
-      micReport('understood', t('mic.understood', { value: value }));
-
-      var elapsed = Math.max(0, (stt.spokeEndAt || Date.now()) - session.startedAt);
-      if (session.startedAt === 0) elapsed = 0;
-      sttLog(runId, forCard, 'graded: ' + value + ' from alternative ' + chosen
-        + ' \u201e' + candidateTexts[chosen] + '\u201c, expected ' + session.expected
-        + ', ' + elapsed + ' ms of ' + sttThresholdMs() + ' ms');
-      submitAnswer(value, elapsed, sttThresholdMs());
+      applyResult(false);
     });
 
     rec.addEventListener('error', function (event) {
       sttLog(runId, forCard, 'error: ' + event.error);
+      // Whatever the error is, this pass has come to its conclusion here — the
+      // end must not treat it as a silently lost utterance on top of that.
+      pass.handled = true;
       // An error is normally followed by 'end'. If that fails to come, the
       // watchdog has to take over.
       sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after error');
@@ -1463,11 +1508,33 @@
       // This pass is finished; the next one arms its own watchdog.
       clearWatchdog();
       stt.started = false;
+      // A pass that ends without ever having concluded is not a non-event. It
+      // has two shapes, and both used to pass silently while the clock ran on
+      // towards the deadline — and the deadline grades the card WRONG:
+      //   * segments arrived but were never marked final — some engines end
+      //     without ever setting isFinal, so the end finalises them here;
+      //   * nothing arrived at all although there was speech — then the
+      //     utterance is lost and the question has to be asked anew.
+      // Either way the clock has to start over (retryUnderstood), because a
+      // child with a bad microphone must not lose its progress to a deadline
+      // it never got to see.
+      var outcome = 'skipped';
+      if (!pass.handled && forCard === session.currentKey && !session.awaitingAck) {
+        outcome = applyResult(true);
+        if (outcome === 'pending' && pass.sawSpeech) {
+          sttLog(runId, forCard, 'ended after speech without a result \u2014 asking again');
+          micReport('error', t('mic.lost'));
+          retryUnderstood(t('mic.notUnderstood'));
+        }
+      }
       mic.speaking = false;
       mic.processing = false;
       // The browser ends after every result; restart while the mode is active.
       // startListening() checks by itself whether listening would be right now.
-      startListening();
+      // Only after a graded value not: submitAnswer has already moved on and
+      // nextQuestion() started the next pass, which this call would abort
+      // again right away.
+      if (outcome !== 'value') startListening();
     });
 
     return rec;
@@ -1481,6 +1548,11 @@
     // and the deadline have to follow — a child with a bad microphone must not
     // lose its progress to deadlines it never got to see.
     session.startedAt = Date.now();
+    // The measured end of speech belongs to the attempt just discarded. Left
+    // standing it lies before the new start, and a result still arriving from
+    // the running pass would be graded as 0 ms — measured against a clock that
+    // no longer exists.
+    stt.spokeEndAt = 0;
     rearmDeadline();
   }
 
