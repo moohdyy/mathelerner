@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 90 Tests)
+node --test                          # gesamte Suite (aktuell 128 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -27,10 +27,11 @@ hinzufügt, bricht den Entwurf.
 
 Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 
-- **`logic.js`** — reine Logik in drei Abschnitten mit Banner-Kommentaren:
-  Zahlenparser, Karten und Scheduler, Speicherschicht. Wird per UMD-Hülle
-  sowohl von `<script src>` im Browser als auch von `require()` in den Tests
-  geladen.
+- **`logic.js`** — reine Logik in nummerierten Abschnitten mit
+  Banner-Kommentaren: Sprachpakete, Zahlenparser, Karten und Scheduler,
+  Zeitanzeige, Mikrofonzustand, Speicherschicht, Fortschrittsanzeige. Wird per
+  UMD-Hülle sowohl von `<script src>` im Browser als auch von `require()` in
+  den Tests geladen.
 - **`index.html`** — Markup, Styles und die gesamte DOM-, Sprach- und
   Ereignisanbindung in einem inline `<script>`.
 
@@ -39,8 +40,10 @@ Genau **zwei ausgelieferte Dateien** im Wurzelverzeichnis:
 **`logic.js` fasst niemals `window`, `document`, `localStorage`, `Date.now()`
 oder `Math.random()` an.** Zeit, Zufall und Storage werden als Parameter
 hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
-`getItem`/`setItem`. Genau das macht Scheduler und Speicherschicht ohne
-Browser testbar, und genau daran hängen die 90 Tests.
+`getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
+Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
+Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
+testbar, und genau daran hängen die 128 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -98,6 +101,25 @@ sind mehrfach falsch umgesetzt worden:
   keine Zahl erkannt, Mikrofon streikt, Netzwerk weg → Karte unverändert,
   Aufgabe erneut stellen. Ein Kind mit schlechtem Mikrofon würde sonst in
   Minuten wochenlangen Lernfortschritt zerstören.
+- **`STATE_VERSION` bleibt 1.** Ein Versionssprung lässt `loadState` alle
+  Profile verwerfen — wochenlanger Fortschritt für ein neues Feld. Ein
+  fehlendes `settings.lang` wird beim Lesen geheilt, nicht durch einen
+  Versionssprung erzwungen, und es wird auf `de` geheilt: bestehende Stände
+  stammen aus der einsprachigen Fassung, unabhängig davon, was der Browser
+  meldet.
+- **`refreshDue` wird gerechnet, nicht am Text erkannt.** Das Flag kommt aus
+  `card.due` und `now`, der Text daraus — nicht umgekehrt. Ein Vergleich gegen
+  „Auffrischung fällig" liefert in jeder anderen Sprache `false` und der
+  Auffrischungsplan verschwindet lautlos.
+- **Ein Sprachwechsel verändert keine Karte und stellt die Uhr nicht.** Er
+  findet im offenen Menü statt, wo die Uhr ohnehin steht; `closeMenu` startet
+  sie wie nach jedem anderen Menübesuch. Wer im Wechsel-Handler selbst an der
+  Uhr dreht, schafft eine fünfte Stelle, die sie stellt.
+- **`rec.lang` wird beim Bau des Erkenners gesetzt** und ändert sich an einem
+  laufenden nicht mehr. Ein Sprachwechsel muss den laufenden Erkenner also
+  verwerfen; `closeMenu` baut den nächsten mit dem neuen `speechLang`. Ohne
+  das spricht das Kind englisch und wird deutsch erkannt — und das wertet eine
+  Karte falsch.
 
 ## Fallen, die schon einmal Zeit gekostet haben
 
@@ -182,25 +204,63 @@ Fehlerpfade und Zeitverhalten messbar sind. Berichte über UI-Verhalten sind
 ohne solche Messung nicht belastbar — mehrfach sahen Fixes im Code korrekt aus
 und wirkten trotzdem nicht.
 
+Für die Sprachschicht haben sich zwei Prüfungen als die aussagekräftigen
+erwiesen, und beide laufen über das DOM, nicht über Augenmaß: erstens, dass
+jedes markierte Element genau das trägt, was `ML.t` für die aktive Sprache
+liefert; zweitens, dass kein Blattelement einen Text hat, der wie ein
+Schlüsselname aussieht (`/^[a-z]+(\.[a-z0-9]+)+$/`) — ein Schlüssel als
+sichtbarer Text heißt, dass ein Paket ihn nicht kennt. Eine Suche nach
+„Resten der anderen Sprache" braucht dagegen Wortgrenzen und muss den inline
+`<script>` auslassen: dessen Kommentare sind deutsch und sein Code englisch,
+und der deutsche Plural „Profile" enthält das englische Wort „Profile". Ohne
+diese beiden Einschränkungen meldet die Suche lauter Treffer, die keine sind.
+
 ## Sprache
 
-**Der Code ist Englisch, die sichtbaren Texte sind Deutsch.** Bezeichner,
-Kommentare, Testnamen, CSS-Klassen, DOM-IDs und Konsolenausgaben: Englisch.
-Alles, was ein Kind oder ein Elternteil im Browser liest, bleibt Deutsch — die
-Zeichenketten in `index.html`, die Rückgabewerte von `BOX_NAMES`, `timeText`,
-`refreshText`, `scoreText` und `cardView().description`.
+**Der Code ist Englisch, die sichtbaren Texte liegen in den Sprachpaketen.**
+Bezeichner, Kommentare, Testnamen, CSS-Klassen, DOM-IDs und Konsolenausgaben:
+Englisch, und auch übersetzt wird dort nichts — eine deutsche Konsolenzeile
+hilft niemandem.
+
+**Alles Sprachliche liegt in `LOCALES` in `logic.js`.** `index.html` trägt nur
+noch Schlüssel: `data-i18n` und seine drei Attributgeschwister im Markup,
+`t(key, params)` im Script. Wer für eine neue Sprache `index.html` anfassen
+muss, hat damit keine Aufgabe gefunden, sondern eine unvollständige Trennung —
+die gehört korrigiert, nicht umgangen. Eine dritte Sprache besteht aus
+`spellXx(n)`, einem Paket in `LOCALES` und der Kennung in der Reihenfolge von
+`ML.LANGUAGES`. Mehr nicht.
 
 Die deutschen Texte tragen echte Umlaute und ß. ASCII-Ersatzschreibungen wie
 `ae`, `oe`, `ue` oder `ss` statt ß sind dort ein Verstoß — das hat schon eine
 eigene Korrekturrunde gekostet.
 
-Die Zahlwörter im Parser (`ONES`, `TEENS`, `TENS`, `spellGerman`) sind
-Fachdaten, keine Oberfläche: die Wörter bleiben natürlich Deutsch, die
-Bezeichner drumherum sind Englisch.
+Die Zahlwörter im Parser (`ONES`, `TEENS`, `TENS`, `spellGerman`,
+`spellEnglish`) sind Fachdaten, keine Oberfläche: die Wörter stehen natürlich
+in ihrer Sprache, die Bezeichner drumherum sind Englisch.
+
+**`fillerWords` ist eine Eigenschaft des Pakets, keine globale Regel.**
+Englisch muss `and` verwerfen, damit „one hundred and five" zusammenwächst.
+Deutsch darf `und` auf keinen Fall verwerfen: „acht und vierzig" würde zu
+`achtvierzig`, stünde in keiner Tabelle und zerfiele in 8 und 40.
+
+**Weder `a` noch `oh` gehören in die englischen Zahlwörter.** Beide stecken in
+Zögerfloskeln, und `parseNumber` nimmt die *erste* gefundene Zahl — „oh,
+twenty-four" würde als 0 gewertet und die Karte fiele auf Box 0 zurück. Ein
+Zögern darf keine Karte kosten; aus demselben Grund bleibt im Deutschen
+„eine" draußen.
+
+**`ML.t` darf bei einem unbekannten Schlüssel schweigen** und den
+Schlüsselnamen selbst zurückgeben, weil ein beschädigter gespeicherter Wert
+die Seite nicht töten soll. Dass das nie im Betrieb passiert, sichert allein
+der Vollständigkeitstest in `test/i18n.test.js` — jedes Paket hat denselben
+Schlüsselsatz, dieselben Pluralformen, dieselben Platzhalter. Wer den Test
+aufweicht, macht aus dem Schweigen einen sichtbaren Schlüsselnamen im Menü.
 
 ## Dokumente
 
-- `docs/superpowers/specs/…-design.md` — die verbindliche Spec
+- `docs/superpowers/specs/…-einmaleins-trainer-design.md` — die verbindliche Spec
+- `docs/superpowers/specs/…-mehrsprachigkeit-design.md` — die verbindliche Spec
+  der Sprachschicht: Paketaufbau, Übersetzer, Parser, Umschaltreihenfolge
 - `docs/superpowers/plans/…-einmaleins-trainer.md` — der Umsetzungsplan.
   **Achtung:** Er enthält an mehreren Stellen Code, der sich als fehlerhaft
   erwiesen hat und im Repo korrigiert wurde. Bei Abweichung gilt der Code.

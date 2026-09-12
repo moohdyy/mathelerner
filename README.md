@@ -41,7 +41,7 @@ Branch auswählen, Ordner `/ (root)`.
 |---|---|
 | 🔊 | Aufgabe vorlesen |
 | 🎤 | Antwort sprechen statt tippen |
-| ☰ | Profile, Zeitschwelle, Fortschritt |
+| ☰ | Profile, Sprache, Zeitschwelle, Fortschritt |
 | Enter oder der Knopf | Antwort abschicken, nach einem Fehler weiter |
 
 Unter der Aufgabe läuft ein Balken ab. Solange er grau ist, zählt eine
@@ -64,6 +64,29 @@ Auffrischungstermin.
 Der Fortschritt liegt pro Profil im `localStorage` des Browsers und wird nicht
 zwischen Geräten synchronisiert.
 
+## Sprache
+
+Unter „Einstellungen“ steht neben der Zeitschwelle die **Sprache**, derzeit
+Deutsch oder Englisch. Sie gehört zum Profil, nicht zum Gerät, und stellt
+alles zugleich um: die Oberfläche samt Boxnamen und Rasterhinweisen, das
+Vorlesen der Aufgabe und die Spracherkennung. Wer auf Englisch übt, hört
+„1 times 3“ und wird mit „forty-eight“ verstanden — ohne die Sprache zu
+wechseln wäre das eine Erkennung in der falschen Sprache und damit eine
+falsche Antwort.
+
+Weil die Sprache am Profil hängt, können auf demselben Gerät ein deutsches und
+ein englisches Kind nebeneinander üben; der Wechsel des Profils wechselt die
+Oberfläche mit. Die Sprachnamen im Menü stehen bewusst in ihrer eigenen
+Sprache — „English“ findet auch, wer das deutsche Menü nicht lesen kann.
+
+Ein Profil, das beim allerersten Start angelegt wird, übernimmt die Sprache
+des Browsers und fällt auf Deutsch zurück, wenn der Browser eine unbekannte
+meldet. Ein später im Menü angelegtes Profil erbt dagegen die Sprache des
+gerade aktiven: wer das Menü bedient, liest es in dieser Sprache, und das ist
+die bessere Vermutung als die Browsereinstellung. Der Fortschritt eines
+Profils ist von der Sprache unberührt — ein Wechsel verändert keine einzige
+Karte.
+
 ## Browser-Unterstützung
 
 | | Tastatur | Vorlesen | Spracheingabe |
@@ -80,15 +103,16 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-90 Tests abgedeckt: Zahlenparser, Scheduler, die zweistufige Zeitanzeige,
-Speicherschicht, der Anzeigezustand des Mikrofons und die Fortschrittsanzeige
-in `logic.js`.
+128 Tests abgedeckt: Zahlenparser in beiden Sprachen, Sprachpakete und
+Übersetzer, Scheduler, die zweistufige Zeitanzeige, Speicherschicht, der
+Anzeigezustand des Mikrofons und die Fortschrittsanzeige in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 
 ## Dokumente
 
 - Design: `docs/superpowers/specs/2026-09-07-einmaleins-trainer-design.md`
+- Design der Mehrsprachigkeit: `docs/superpowers/specs/2026-09-11-mehrsprachigkeit-design.md`
 - Plan: `docs/superpowers/plans/2026-09-07-einmaleins-trainer.md`
 
 ## Was bewusst nicht gebaut wurde
