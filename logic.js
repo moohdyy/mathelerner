@@ -511,20 +511,22 @@
 
   var STORAGE_KEY = 'mathelerner.v1';
   var STATE_VERSION = 1;
-  var DEFAULT_SETTINGS = { tts: false, stt: false, thresholdMs: DEFAULT_THRESHOLD_MS };
+  var DEFAULT_SETTINGS = { tts: false, stt: false, thresholdMs: DEFAULT_THRESHOLD_MS,
+                           lang: DEFAULT_LANGUAGE };
 
   function defaultState() {
     return { version: STATE_VERSION, activeProfile: null, profiles: {} };
   }
 
-  function newProfile(name, now) {
+  function newProfile(name, now, lang) {
     var cards = {};
     for (var i = 0; i < ALL_CARD_KEYS.length; i++) cards[ALL_CARD_KEYS[i]] = newCard();
     return {
       name: name,
       created: now,
       settings: { tts: DEFAULT_SETTINGS.tts, stt: DEFAULT_SETTINGS.stt,
-                  thresholdMs: DEFAULT_SETTINGS.thresholdMs },
+                  thresholdMs: DEFAULT_SETTINGS.thresholdMs,
+                  lang: LOCALES[lang] ? lang : DEFAULT_LANGUAGE },
       cards: cards,
       stats: { sessions: 0, totalAnswers: 0 }
     };
@@ -549,6 +551,14 @@
       if (pr && typeof pr === 'object' && pr.cards && typeof pr.cards === 'object' &&
           pr.settings && typeof pr.settings === 'object' &&
           pr.stats && typeof pr.stats === 'object') {
+        // STATE_VERSION stays 1 on purpose: a bump would discard every
+        // existing profile here — weeks of progress for the sake of one new
+        // setting. The missing field is healed instead. Existing profiles come
+        // from the single-language app, so German is the right assumption, and
+        // it stays right no matter what the browser reports.
+        if (typeof pr.settings.lang !== 'string' || !LOCALES[pr.settings.lang]) {
+          pr.settings.lang = DEFAULT_LANGUAGE;
+        }
         healthy[ids[i]] = pr;
       }
     }
@@ -576,11 +586,11 @@
     return 'p' + n;
   }
 
-  function createProfile(state, name, now) {
+  function createProfile(state, name, now, lang) {
     var profiles = {}, keys = Object.keys(state.profiles), i;
     for (i = 0; i < keys.length; i++) profiles[keys[i]] = state.profiles[keys[i]];
     var id = nextProfileId(profiles);
-    profiles[id] = newProfile(name, now);
+    profiles[id] = newProfile(name, now, lang);
     return {
       state: { version: STATE_VERSION, activeProfile: id, profiles: profiles },
       id: id

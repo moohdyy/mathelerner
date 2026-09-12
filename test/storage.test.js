@@ -138,3 +138,60 @@ test('every profile has its own settings object', () => {
   assert.strictEqual(ML.DEFAULT_SETTINGS.thresholdMs, 3000,
     'the defaults themselves stay untouched');
 });
+
+test('a new profile carries the language it was created with', () => {
+  assert.strictEqual(ML.newProfile('Kind', 0, 'en').settings.lang, 'en');
+  assert.strictEqual(ML.newProfile('Kind', 0, 'de').settings.lang, 'de');
+});
+
+test('a new profile falls back to the default language', () => {
+  assert.strictEqual(ML.newProfile('Kind', 0).settings.lang, ML.DEFAULT_LANGUAGE);
+  assert.strictEqual(ML.newProfile('Kind', 0, 'fr').settings.lang, ML.DEFAULT_LANGUAGE);
+  assert.strictEqual(ML.newProfile('Kind', 0, null).settings.lang, ML.DEFAULT_LANGUAGE);
+});
+
+test('createProfile passes the language through', () => {
+  const made = ML.createProfile(ML.defaultState(), 'Kind', 0, 'en');
+  assert.strictEqual(made.state.profiles[made.id].settings.lang, 'en');
+});
+
+test('DEFAULT_SETTINGS names a language', () => {
+  assert.strictEqual(ML.DEFAULT_SETTINGS.lang, 'de');
+});
+
+// The important one: a state written by the single-language version must keep
+// every card. A bump of STATE_VERSION would throw all of it away.
+test('a stored state without lang keeps all its progress', () => {
+  const profile = ML.newProfile('Kind', 0, 'de');
+  profile.cards['7x8'].box = 3;
+  profile.cards['7x8'].seen = 9;
+  delete profile.settings.lang;                       // as the old version wrote it
+  const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+  const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+
+  const loaded = ML.loadState(storage);
+  assert.strictEqual(loaded.activeProfile, 'p1');
+  assert.strictEqual(Object.keys(loaded.profiles.p1.cards).length, 100);
+  assert.strictEqual(loaded.profiles.p1.cards['7x8'].box, 3);
+  assert.strictEqual(loaded.profiles.p1.cards['7x8'].seen, 9);
+  assert.strictEqual(loaded.profiles.p1.settings.lang, 'de');
+});
+
+test('loadState heals an unusable lang', () => {
+  const cases = ['fr', '', 42, null, {}];
+  cases.forEach((bad) => {
+    const profile = ML.newProfile('Kind', 0, 'de');
+    profile.settings.lang = bad;
+    const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+    const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+    assert.strictEqual(ML.loadState(storage).profiles.p1.settings.lang, 'de',
+      'lang ' + JSON.stringify(bad));
+  });
+});
+
+test('loadState keeps a valid lang', () => {
+  const profile = ML.newProfile('Kind', 0, 'en');
+  const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+  const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+  assert.strictEqual(ML.loadState(storage).profiles.p1.settings.lang, 'en');
+});
