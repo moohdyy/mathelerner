@@ -101,7 +101,79 @@
         'card.refreshDue': 'Auffrischung fällig',
         'card.refreshIn': { one: 'Auffrischung in {n} Tag',
                             other: 'Auffrischung in {n} Tagen' },
-        'time.seconds': '{value} s'
+        'time.seconds': '{value} s',
+
+        'app.title': 'Einmaleins',
+
+        'menu.profile': 'Profil',
+        'menu.activeProfile': 'Aktives Profil',
+        'menu.delete': 'Löschen',
+        'menu.deleteConfirm': 'Wirklich löschen?',
+        'menu.newProfile': 'Neues Profil',
+        'menu.namePlaceholder': 'Name',
+        'menu.add': 'Anlegen',
+        'menu.settings': 'Einstellungen',
+        'menu.threshold': 'Zeitschwelle in Sekunden',
+        'menu.language': 'Sprache',
+        'menu.progress': 'Fortschritt',
+        'menu.allCards': 'Alle 100 Aufgaben',
+        'menu.close': 'Zurück zum Üben',
+
+        'stats.open': 'offen: {n} von 100',
+        'stats.mastered': 'gemeistert: {n}',
+        'stats.totalAnswers': 'Antworten insgesamt: {n}',
+        'stats.sessions': 'Sitzungen: {n}',
+        'stats.slowest': 'Langsamste offene Aufgaben',
+
+        'box.legendName': '{name} · Box {box}',
+        'box.count': { one: '1 Aufgabe', other: '{n} Aufgaben' },
+        'box.refreshDaysJoin': ', dann ',
+        'box.explain.0': 'Noch nie richtig und schnell genug beantwortet — oder zuletzt danebengegangen.',
+        'box.explain.1': 'Einmal richtig und schnell genug geschafft.',
+        'box.explain.2': 'Zweimal hintereinander richtig und schnell genug — fehlt noch einmal.',
+        'box.explain.3': 'Dreimal geschafft. Kommt nur noch zur Auffrischung dran: nach {days} Tagen.',
+        'box.rules': 'So wandern die Aufgaben: richtig und schnell genug — eine Box weiter. ' +
+          'Richtig, aber zu langsam — die Aufgabe bleibt stehen, geht aber auch nicht ' +
+          'zurück. Falsch — zurück in Box 0. Ein ↻ statt des Hakens heißt: Diese ' +
+          'gemeisterte Aufgabe ist zur Auffrischung fällig.',
+        'grid.hint': 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.',
+
+        'trainer.answerLabel': 'Antwort',
+        'trainer.ok': 'OK',
+        'trainer.next': 'Weiter',
+        'trainer.progress': 'noch {n} von 100 offen',
+        'trainer.wrong': 'Richtig wäre {expected} — mit Enter oder dem Knopf weiter',
+        'trainer.wrongTimeUp': 'Zeit ist um. Richtig wäre {expected} — mit Enter oder dem Knopf weiter',
+
+        'done.all': 'Alles gemeistert. Nichts steht zur Auffrischung an.',
+        'done.freeplay': 'Trotzdem weiterüben',
+
+        'storage.warning': 'Achtung: Der Fortschritt kann in diesem Browser nicht gespeichert werden.',
+
+        'mic.paused': 'Mikrofon pausiert',
+        'mic.reading': 'Noch nicht sprechen',
+        'mic.starting': 'Mikrofon startet …',
+        'mic.ready': 'Jetzt sprechen',
+        'mic.hearing': 'Ich höre dich',
+        'mic.processing': 'Einen Moment …',
+        'mic.heard': 'gehört: „{text}“',
+        'mic.understood': 'Verstanden: {value}',
+        'mic.noNumber': 'Keine Zahl verstanden',
+        'mic.notUnderstood': 'Nicht verstanden — bitte nochmal',
+        'mic.nothingHeard': 'Nichts gehört',
+        'mic.nothingHeardRetry': 'Nichts gehört — bitte nochmal',
+        'mic.problem': 'Mikrofon-Problem',
+        'mic.problemRetry': 'Mikrofon-Problem — bitte nochmal',
+        'mic.broken': 'Mikrofon funktioniert gerade nicht — bitte tippen',
+        'mic.denied': 'Kein Zugriff auf das Mikrofon — Tastatur geht weiter',
+
+        'toolbar.tts': 'Aufgabe vorlesen',
+        'toolbar.ttsUnsupported': 'Dieser Browser kann nicht vorlesen',
+        'toolbar.stt': 'Antwort sprechen',
+        'toolbar.sttInsecure': 'Das Mikrofon braucht HTTPS — über GitHub Pages oder localhost öffnen',
+        'toolbar.menu': 'Profile und Einstellungen',
+
+        'profile.defaultName': 'Ich'
       }
     },
 
@@ -134,7 +206,79 @@
         'card.refreshDue': 'refresher due',
         'card.refreshIn': { one: 'refresher in {n} day',
                             other: 'refresher in {n} days' },
-        'time.seconds': '{value} s'
+        'time.seconds': '{value} s',
+
+        'app.title': 'Times Tables',
+
+        'menu.profile': 'Profile',
+        'menu.activeProfile': 'Active profile',
+        'menu.delete': 'Delete',
+        'menu.deleteConfirm': 'Really delete?',
+        'menu.newProfile': 'New profile',
+        'menu.namePlaceholder': 'Name',
+        'menu.add': 'Create',
+        'menu.settings': 'Settings',
+        'menu.threshold': 'Time threshold in seconds',
+        'menu.language': 'Language',
+        'menu.progress': 'Progress',
+        'menu.allCards': 'All 100 questions',
+        'menu.close': 'Back to practice',
+
+        'stats.open': 'open: {n} of 100',
+        'stats.mastered': 'mastered: {n}',
+        'stats.totalAnswers': 'answers in total: {n}',
+        'stats.sessions': 'sessions: {n}',
+        'stats.slowest': 'Slowest open questions',
+
+        'box.legendName': '{name} · box {box}',
+        'box.count': { one: '1 question', other: '{n} questions' },
+        'box.refreshDaysJoin': ', then ',
+        'box.explain.0': 'Never yet answered correctly and fast enough — or missed last time.',
+        'box.explain.1': 'Managed once, correctly and fast enough.',
+        'box.explain.2': 'Twice in a row, correctly and fast enough — one more to go.',
+        'box.explain.3': 'Managed three times. Only comes up for a refresher now: after {days} days.',
+        'box.rules': 'This is how the questions move: correct and fast enough — one box up. ' +
+          'Correct but too slow — the question stays where it is, but it does not fall ' +
+          'back either. Wrong — back to box 0. A ↻ instead of the tick means: this ' +
+          'mastered question is due for a refresher.',
+        'grid.hint': 'Tap a question to see how it is doing.',
+
+        'trainer.answerLabel': 'Answer',
+        'trainer.ok': 'OK',
+        'trainer.next': 'Continue',
+        'trainer.progress': '{n} of 100 still open',
+        'trainer.wrong': 'The answer is {expected} — press Enter or the button to continue',
+        'trainer.wrongTimeUp': 'Time is up. The answer is {expected} — press Enter or the button to continue',
+
+        'done.all': 'All mastered. Nothing is due for a refresher.',
+        'done.freeplay': 'Keep practising anyway',
+
+        'storage.warning': 'Careful: progress cannot be saved in this browser.',
+
+        'mic.paused': 'Microphone paused',
+        'mic.reading': 'Do not speak yet',
+        'mic.starting': 'Microphone starting …',
+        'mic.ready': 'Speak now',
+        'mic.hearing': 'I can hear you',
+        'mic.processing': 'One moment …',
+        'mic.heard': 'heard: “{text}”',
+        'mic.understood': 'Understood: {value}',
+        'mic.noNumber': 'No number understood',
+        'mic.notUnderstood': 'Not understood — please try again',
+        'mic.nothingHeard': 'Nothing heard',
+        'mic.nothingHeardRetry': 'Nothing heard — please try again',
+        'mic.problem': 'Microphone problem',
+        'mic.problemRetry': 'Microphone problem — please try again',
+        'mic.broken': 'The microphone is not working right now — please type',
+        'mic.denied': 'No access to the microphone — the keyboard still works',
+
+        'toolbar.tts': 'Read the question aloud',
+        'toolbar.ttsUnsupported': 'This browser cannot read aloud',
+        'toolbar.stt': 'Speak the answer',
+        'toolbar.sttInsecure': 'The microphone needs HTTPS — open via GitHub Pages or localhost',
+        'toolbar.menu': 'Profiles and settings',
+
+        'profile.defaultName': 'Me'
       }
     }
   };
