@@ -612,8 +612,11 @@
      =================================================================== */
 
   // The box number alone tells nobody anything. For the display every box gets
-  // a name; the index is the box number. German, because this is shown.
-  var BOX_NAMES = ['neu', 'geübt', 'fast sicher', 'gemeistert'];
+  // a name; the index is the box number.
+  function boxNames(lang) {
+    return [t(lang, 'box.name.0'), t(lang, 'box.name.1'),
+            t(lang, 'box.name.2'), t(lang, 'box.name.3')];
+  }
 
   // How many cards sit in which box — the index is the box number.
   function boxDistribution(profile) {
@@ -632,53 +635,63 @@
     return Math.min(b, BOX_MASTERED);
   }
 
-  // German decimal notation, never a negative time.
-  function timeText(ms) {
+  // Never a negative time; the decimal separator comes from the pack.
+  function timeText(ms, lang) {
     if (ms === null || ms === undefined || isNaN(ms)) return null;
-    return (Math.max(0, ms) / 1000).toFixed(1).replace('.', ',') + ' s';
+    var value = (Math.max(0, ms) / 1000).toFixed(1).replace('.', locale(lang).decimal);
+    return t(lang, 'time.seconds', { value: value });
+  }
+
+  // Whether a mastered card is due again. Computed from due and now — never by
+  // comparing the text, which would report false in every other language.
+  function refreshDue(card, now) {
+    if (clampBox(card.box) !== BOX_MASTERED) return false;
+    if (!card.due || card.due <= 0) return false;
+    return card.due <= now;
   }
 
   // When a mastered card comes up again. For every other box there is no
   // refresh date — the result is null there.
-  function refreshText(card, now) {
+  function refreshText(card, now, lang) {
     if (clampBox(card.box) !== BOX_MASTERED) return null;
     if (!card.due || card.due <= 0) return null;
-    if (card.due <= now) return 'Auffrischung fällig';
+    if (card.due <= now) return t(lang, 'card.refreshDue');
     var days = Math.ceil((card.due - now) / DAY_MS);
-    return 'Auffrischung in ' + days + (days === 1 ? ' Tag' : ' Tagen');
+    return t(lang, 'card.refreshIn', { n: days });
   }
 
-  function scoreText(card) {
-    if (!card.seen) return 'noch nicht drangekommen';
-    return card.correct + ' von ' + card.seen + ' richtig';
+  function scoreText(card, lang) {
+    if (!card.seen) return t(lang, 'card.notSeen');
+    return t(lang, 'card.score', { correct: card.correct, seen: card.seen });
   }
 
   // One card, ready for display: box number, name, whether a refresh is due,
   // and a sentence that states everything worth knowing.
-  function cardView(card, key, now) {
+  function cardView(card, key, now, lang) {
     var ab = parseCardKey(key);
     var box = clampBox(card.box);
-    var refresh = refreshText(card, now);
-    var parts = [ab.a + ' × ' + ab.b, BOX_NAMES[box] + ' (Box ' + box + ')'];
-    var time = timeText(card.bestMs);
-    if (time !== null) parts.push('beste Zeit ' + time);
-    parts.push(scoreText(card));
+    var names = boxNames(lang);
+    var parts = [ab.a + ' × ' + ab.b, t(lang, 'card.box', { name: names[box], box: box })];
+    var time = timeText(card.bestMs, lang);
+    if (time !== null) parts.push(t(lang, 'card.bestTime', { time: time }));
+    parts.push(scoreText(card, lang));
+    var refresh = refreshText(card, now, lang);
     if (refresh !== null) parts.push(refresh);
     return {
       key: key, a: ab.a, b: ab.b,
-      box: box, name: BOX_NAMES[box],
-      refreshDue: refresh === 'Auffrischung fällig',
+      box: box, name: names[box],
+      refreshDue: refreshDue(card, now),
       description: parts.join(' · ')
     };
   }
 
   // Always all 100 cards in a fixed order — a profile missing a card would
   // otherwise tear a hole into the grid.
-  function cardViews(profile, now) {
+  function cardViews(profile, now, lang) {
     var list = [];
     for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
       var key = ALL_CARD_KEYS[i];
-      list.push(cardView(profile.cards[key] || newCard(), key, now));
+      list.push(cardView(profile.cards[key] || newCard(), key, now, lang));
     }
     return list;
   }
@@ -733,9 +746,10 @@
     createProfile: createProfile,
     deleteProfile: deleteProfile,
     openCount: openCount,
-    BOX_NAMES: BOX_NAMES,
+    boxNames: boxNames,
     boxDistribution: boxDistribution,
     timeText: timeText,
+    refreshDue: refreshDue,
     refreshText: refreshText,
     scoreText: scoreText,
     cardView: cardView,
