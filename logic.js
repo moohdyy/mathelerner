@@ -207,28 +207,28 @@
   }
 
   // Normalisation: lowercase, ß -> ss, everything but letters and digits
-  // removed. Applied identically to the input AND to the lookup table.
+  // removed. Applied identically to the input AND to the lookup table, so
+  // "forty-eight", "forty eight" and "fortyeight" all end up the same. The
+  // unicode classes keep the letters of every language instead of only
+  // a-z plus äöü.
   function normalizeWord(s) {
-    return String(s).toLowerCase().replace(/ß/g, 'ss').replace(/[^a-zäöü0-9]/g, '');
+    return String(s).toLowerCase().replace(/ß/g, 'ss').replace(/[^\p{L}\p{N}]/gu, '');
   }
 
-  var WORD_TO_NUMBER = (function () {
+  // The word table is built from the pack's spell() for 0-999 and cached on
+  // the pack — building it costs a thousand calls and must not happen per
+  // utterance.
+  function numberWords(loc) {
+    if (loc._words) return loc._words;
     var map = Object.create(null);
-    for (var n = 0; n <= 999; n++) map[normalizeWord(spellGerman(n))] = n;
-    // "hundertfünf" is more common in German than "einhundertfünf"; the
-    // generated table only produces the long form. For 100-199 add the form
-    // without the leading "ein" as well (drop 3 characters).
-    for (var h = 100; h <= 199; h++) {
-      map[normalizeWord(spellGerman(h)).slice(3)] = h;
-    }
-    // Forms the generated table does not produce:
-    map[normalizeWord('eins')] = 1;      // "ein" is generated, but people say "eins"
-    // "eine" is deliberately NOT added: the article hides inside hesitation
-    // phrases like "vielleicht eine" and would turn those into a wrong answer.
-    // Recognisers return "eins" or "1" for the number itself.
-    map[normalizeWord('zwo')] = 2;       // frequent misrecognition
+    for (var n = 0; n <= 999; n++) map[normalizeWord(loc.spell(n))] = n;
+    if (typeof loc.extraForms === 'function') loc.extraForms(map, normalizeWord);
+    var extra = loc.extraWords || {};
+    var words = Object.keys(extra);
+    for (var i = 0; i < words.length; i++) map[normalizeWord(words[i])] = extra[words[i]];
+    loc._words = map;
     return map;
-  })();
+  }
 
   // Maximum number of words a single number can consist of
   // ("zwei hundert drei und vierzig" = 6).
@@ -237,8 +237,9 @@
   // Walks the text left to right and returns EVERY number found. At each
   // position the longest match wins, so "acht und vierzig" reads as 48 and not
   // as 8; afterwards scanning continues behind the match.
-  function parseGermanNumbers(text) {
+  function parseNumbers(text, lang) {
     if (text == null) return [];
+    var loc = locale(lang);
     var raw = String(text);
     var matches = [];
 
@@ -249,13 +250,17 @@
       return matches;
     }
 
-    var words = raw.split(/\s+/).map(normalizeWord).filter(function (w) { return w.length > 0; });
+    var table = numberWords(loc);
+    var fillers = loc.fillerWords || [];
+    var words = raw.split(/\s+/).map(normalizeWord).filter(function (w) {
+      return w.length > 0 && fillers.indexOf(w) === -1;
+    });
     var i = 0;
     while (i < words.length) {
       var best = null, bestLen = 0, joined = '';
       for (var len = 1; len <= MAX_NUMBER_WORDS && i + len <= words.length; len++) {
         joined += words[i + len - 1];
-        var hit = WORD_TO_NUMBER[joined];
+        var hit = table[joined];
         if (hit !== undefined) { best = hit; bestLen = len; }
       }
       if (best !== null) { matches.push(best); i += bestLen; }
@@ -264,21 +269,15 @@
     return matches;
   }
 
-  // The first number of the utterance — a view on parseGermanNumbers so that
-  // there is only one implementation.
-  function parseGermanNumber(text) {
-    var all = parseGermanNumbers(text);
+  // The first number of the utterance — a view on parseNumbers so that there
+  // is only one implementation.
+  function parseNumber(text, lang) {
+    var all = parseNumbers(text, lang);
     return all.length > 0 ? all[0] : null;
   }
 
-  // The text the speech synthesis reads out. The factors deliberately stay
-  // digits — that leaves the stress to the engine, which sounds more natural
-  // than spelled-out number words. The only exception is a leading 1: the
-  // engine reads the digit as „eins", but in German it is „ein mal drei"
-  // before the „mal". The second factor is left alone, where „drei mal eins"
-  // is correct.
-  function spokenQuestion(a, b) {
-    return (a === 1 ? 'ein' : String(a)) + ' mal ' + b;
+  function spokenQuestion(a, b, lang) {
+    return locale(lang).spokenQuestion(a, b);
   }
 
   /* ===================================================================
@@ -692,8 +691,8 @@
     resolveLanguage: resolveLanguage,
     t: t,
     _spellEnglish: spellEnglish,
-    parseGermanNumber: parseGermanNumber,
-    parseGermanNumbers: parseGermanNumbers,
+    parseNumber: parseNumber,
+    parseNumbers: parseNumbers,
     _spellGerman: spellGerman,
     spokenQuestion: spokenQuestion,
     BOX_MASTERED: BOX_MASTERED,
