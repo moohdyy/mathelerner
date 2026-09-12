@@ -119,6 +119,9 @@
         'menu.allCards': 'Alle 100 Aufgaben',
         'menu.close': 'Zurück zum Üben',
 
+        // These stats.* keys are the only texts that reach
+        // el.stats.innerHTML (see renderStats in index.html) instead of
+        // textContent — they must never contain markup characters (<, >, &).
         'stats.open': 'offen: {n} von 100',
         'stats.mastered': 'gemeistert: {n}',
         'stats.totalAnswers': 'Antworten insgesamt: {n}',
@@ -224,6 +227,9 @@
         'menu.allCards': 'All 100 questions',
         'menu.close': 'Back to practice',
 
+        // These stats.* keys are the only texts that reach
+        // el.stats.innerHTML (see renderStats in index.html) instead of
+        // textContent — they must never contain markup characters (<, >, &).
         'stats.open': 'open: {n} of 100',
         'stats.mastered': 'mastered: {n}',
         'stats.totalAnswers': 'answers in total: {n}',
@@ -283,7 +289,10 @@
     }
   };
 
-  // Fixed order for the menu.
+  // Fixed order for the menu. Exported together with the raw key set of
+  // LOCALES below so a test can catch the two drifting apart — a pack added
+  // here but forgotten in LOCALES (or the reverse) would otherwise only show
+  // up as a silently unselectable menu entry or an unreachable pack.
   var LANGUAGE_ORDER = ['de', 'en'];
 
   var LANGUAGES = LANGUAGE_ORDER.map(function (id) {
@@ -854,6 +863,8 @@
     DEFAULT_LANGUAGE: DEFAULT_LANGUAGE,
     REQUIRED_LOCALE_FIELDS: REQUIRED_LOCALE_FIELDS,
     LANGUAGES: LANGUAGES,
+    LANGUAGE_ORDER: LANGUAGE_ORDER,
+    LOCALE_IDS: Object.keys(LOCALES),
     locale: locale,
     resolveLanguage: resolveLanguage,
     t: t,

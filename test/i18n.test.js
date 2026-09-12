@@ -20,11 +20,26 @@ function placeholdersOf(value) {
 }
 
 test('every language is reachable through LANGUAGES', () => {
-  assert.deepStrictEqual(ML.LANGUAGES.map((l) => l.id), ['de', 'en']);
+  assert.ok(ML.LANGUAGES.length > 0);
+  const ids = ML.LANGUAGES.map((l) => l.id);
+  assert.deepStrictEqual(ids, ML.LANGUAGE_ORDER,
+    'LANGUAGES must list the ids in exactly LANGUAGE_ORDER order');
+  assert.strictEqual(new Set(ids).size, ids.length, 'language ids must be unique');
+  assert.ok(ids.includes(ML.DEFAULT_LANGUAGE), 'the default language must be among the languages');
   ML.LANGUAGES.forEach((l) => {
+    assert.strictEqual(typeof l.id, 'string');
+    assert.ok(l.id.length > 0);
     assert.strictEqual(typeof l.label, 'string');
     assert.ok(l.label.length > 0);
   });
+});
+
+test('LANGUAGE_ORDER and the locale packs cover exactly the same set of languages', () => {
+  // LANGUAGE_ORDER drives the menu; LOCALES (surfaced as LOCALE_IDS) drives
+  // locale()/resolveLanguage()/loadState. A pack added to one but not the
+  // other would be selectable but untested, or listed but unreachable — this
+  // is the one place that would catch that divergence.
+  assert.deepStrictEqual([...ML.LANGUAGE_ORDER].sort(), [...ML.LOCALE_IDS].sort());
 });
 
 test('every pack carries the same text keys as the default language', () => {
