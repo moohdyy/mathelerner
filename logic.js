@@ -10,6 +10,180 @@
   'use strict';
 
   /* ===================================================================
+     Section 0 — languages
+     ===================================================================
+
+     Everything language-specific lives in a pack here, and nothing
+     language-specific lives outside one. A pack holds the visible texts, the
+     number words the parser needs, the speech tag for synthesis and
+     recognition, the plural rule and the decimal separator.
+
+     `spell` and `spokenQuestion` are functions rather than data on purpose:
+     German composition ("achtundvierzig") and the German special case
+     "ein mal drei" cannot be expressed as a table.
+
+     Adding a language means adding one object here plus its id in
+     LANGUAGE_ORDER. index.html is not touched for that — if it has to be,
+     the separation is incomplete at that spot and belongs fixed. */
+
+  var DEFAULT_LANGUAGE = 'de';
+
+  var REQUIRED_LOCALE_FIELDS = ['id', 'label', 'htmlLang', 'speechLang', 'decimal',
+                                'spell', 'extraWords', 'fillerWords', 'plural',
+                                'spokenQuestion', 'texts'];
+
+  // Two forms are enough for German and English. A language that needs more
+  // brings its own selector in its pack.
+  function pluralOneOther(n) { return n === 1 ? 'one' : 'other'; }
+
+  var EN_ONES = ['zero', 'one', 'two', 'three', 'four',
+                 'five', 'six', 'seven', 'eight', 'nine'];
+  var EN_TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
+                  'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  var EN_TENS = ['', '', 'twenty', 'thirty', 'forty',
+                 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  function spellEnglishBelow100(n) {
+    if (n < 10) return EN_ONES[n];
+    if (n < 20) return EN_TEENS[n - 10];
+    var t = Math.floor(n / 10), o = n % 10;
+    return o === 0 ? EN_TENS[t] : EN_TENS[t] + '-' + EN_ONES[o];
+  }
+
+  // The hyphen and the space survive only until normalizeWord runs over it;
+  // both spellings therefore end up as the same table key.
+  function spellEnglish(n) {
+    if (n < 100) return spellEnglishBelow100(n);
+    var h = Math.floor(n / 100), r = n % 100;
+    return EN_ONES[h] + ' hundred' + (r === 0 ? '' : ' ' + spellEnglishBelow100(r));
+  }
+
+  var LOCALES = {
+
+    de: {
+      id: 'de',
+      label: 'Deutsch',
+      htmlLang: 'de',
+      speechLang: 'de-DE',
+      decimal: ',',
+      spell: function (n) { return spellGerman(n); },
+      // Forms the generated table does not produce.
+      // "eine" is deliberately absent: the article hides inside hesitation
+      // phrases like "vielleicht eine" and would turn those into a wrong
+      // answer. Recognisers return "eins" or "1" for the number itself.
+      extraWords: { eins: 1, zwo: 2 },
+      // "hundertfünf" is more common than "einhundertfünf"; the generated
+      // table only produces the long form.
+      extraForms: function (map, norm) {
+        for (var h = 100; h <= 199; h++) map[norm(spellGerman(h)).slice(3)] = h;
+      },
+      // "und" must NOT be dropped: "acht und vierzig" joins to
+      // "achtundvierzig". Dropping it would give "achtvierzig", which is in no
+      // table, and the utterance would fall apart into 8 and 40.
+      fillerWords: [],
+      plural: pluralOneOther,
+      // The factors deliberately stay digits — that leaves the stress to the
+      // engine. The only exception is a leading 1: the engine reads the digit
+      // as „eins", but in German it is „ein mal drei" before the „mal". The
+      // second factor is left alone, where „drei mal eins" is correct.
+      spokenQuestion: function (a, b) {
+        return (a === 1 ? 'ein' : String(a)) + ' mal ' + b;
+      },
+      texts: {
+        'box.name.0': 'neu',
+        'box.name.1': 'geübt',
+        'box.name.2': 'fast sicher',
+        'box.name.3': 'gemeistert',
+        'card.box': '{name} (Box {box})',
+        'card.bestTime': 'beste Zeit {time}',
+        'card.notSeen': 'noch nicht drangekommen',
+        'card.score': '{correct} von {seen} richtig',
+        'card.refreshDue': 'Auffrischung fällig',
+        'card.refreshIn': { one: 'Auffrischung in {n} Tag',
+                            other: 'Auffrischung in {n} Tagen' },
+        'time.seconds': '{value} s'
+      }
+    },
+
+    en: {
+      id: 'en',
+      label: 'English',
+      htmlLang: 'en',
+      speechLang: 'en-US',
+      decimal: '.',
+      spell: spellEnglish,
+      // Deliberately empty. Neither the article "a" nor the spoken "oh" for
+      // zero belongs in here: both hide inside hesitation phrases ("maybe
+      // a…", "oh, twenty-four"), and because parseNumber takes the FIRST
+      // number found, "oh, twenty-four" would be graded as 0 and the card
+      // would fall back. Hesitating must not cost a card.
+      extraWords: {},
+      // "one hundred and five" has to join to "onehundredfive".
+      fillerWords: ['and'],
+      plural: pluralOneOther,
+      spokenQuestion: function (a, b) { return a + ' times ' + b; },
+      texts: {
+        'box.name.0': 'new',
+        'box.name.1': 'practised',
+        'box.name.2': 'almost solid',
+        'box.name.3': 'mastered',
+        'card.box': '{name} (box {box})',
+        'card.bestTime': 'best time {time}',
+        'card.notSeen': 'not come up yet',
+        'card.score': '{correct} of {seen} correct',
+        'card.refreshDue': 'refresher due',
+        'card.refreshIn': { one: 'refresher in {n} day',
+                            other: 'refresher in {n} days' },
+        'time.seconds': '{value} s'
+      }
+    }
+  };
+
+  // Fixed order for the menu.
+  var LANGUAGE_ORDER = ['de', 'en'];
+
+  var LANGUAGES = LANGUAGE_ORDER.map(function (id) {
+    return { id: id, label: LOCALES[id].label };
+  });
+
+  // A broken stored value must never kill the page: anything unknown gets the
+  // default pack. That a translation is missing is reported by the
+  // completeness test, not by an exception at runtime.
+  function locale(lang) {
+    return LOCALES[lang] || LOCALES[DEFAULT_LANGUAGE];
+  }
+
+  // Compares only the part before the hyphen and is therefore independent of
+  // which regional variants a browser reports.
+  function resolveLanguage(tag) {
+    if (tag === null || tag === undefined) return DEFAULT_LANGUAGE;
+    var base = String(tag).toLowerCase().split('-')[0];
+    return LOCALES[base] ? base : DEFAULT_LANGUAGE;
+  }
+
+  // An unfilled placeholder stays visible. "undefined" in the middle of a
+  // sentence looks like a working text and hides the mistake.
+  function fillPlaceholders(template, params) {
+    if (!params) return template;
+    return template.replace(/\{(\w+)\}/g, function (whole, name) {
+      return Object.prototype.hasOwnProperty.call(params, name)
+        ? String(params[name]) : whole;
+    });
+  }
+
+  function t(lang, key, params) {
+    var loc = locale(lang);
+    var value = loc.texts[key];
+    if (value === undefined) return key;
+    if (typeof value === 'object') {
+      var n = params && params.n !== undefined ? Number(params.n) : 0;
+      var form = loc.plural(n);
+      value = value[form] !== undefined ? value[form] : value.other;
+    }
+    return fillPlaceholders(String(value), params);
+  }
+
+  /* ===================================================================
      Section 1 — number parser
      =================================================================== */
 
@@ -511,6 +685,13 @@
   }
 
   return {
+    DEFAULT_LANGUAGE: DEFAULT_LANGUAGE,
+    REQUIRED_LOCALE_FIELDS: REQUIRED_LOCALE_FIELDS,
+    LANGUAGES: LANGUAGES,
+    locale: locale,
+    resolveLanguage: resolveLanguage,
+    t: t,
+    _spellEnglish: spellEnglish,
     parseGermanNumber: parseGermanNumber,
     parseGermanNumbers: parseGermanNumbers,
     _spellGerman: spellGerman,
