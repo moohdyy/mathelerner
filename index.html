@@ -448,10 +448,16 @@
     cardDetail: document.getElementById('card-detail')
   };
 
+  // The browser's language decides only for a profile that is created new —
+  // never for one that was loaded. A stored profile comes from an earlier run
+  // and keeps the language it was set to.
+  var browserLanguage = ML.resolveLanguage(
+    (typeof navigator !== 'undefined' && navigator.language) || null);
+
   var state = ML.loadState(window.localStorage);
   if (!state.activeProfile) {
-    var created = ML.createProfile(state,
-      ML.t(ML.DEFAULT_LANGUAGE, 'profile.defaultName'), Date.now(), ML.DEFAULT_LANGUAGE);
+    var created = ML.createProfile(state, ML.t(browserLanguage, 'profile.defaultName'),
+                                   Date.now(), browserLanguage);
     state = created.state;
     ML.saveState(window.localStorage, state);
   }
@@ -753,6 +759,19 @@
   function ackFeedbackText() {
     return t(session.ackTimeUp ? 'trainer.wrongTimeUp' : 'trainer.wrong',
              { expected: session.expected });
+  }
+
+  // The factors stay, the texts do not: the button label and a standing
+  // acknowledgement have to follow the language.
+  function relabelQuestion() {
+    if (session.currentKey === null) return;
+    if (session.awaitingAck) {
+      el.feedback.textContent = ackFeedbackText();
+      el.confirm.textContent = t('trainer.next');
+    } else {
+      el.feedback.textContent = '';
+      el.confirm.textContent = t('trainer.ok');
+    }
   }
 
   // elapsedMs can be overridden (voice mode measures differently).
@@ -1713,6 +1732,19 @@
     el.cardDetail.classList.add('active');
   });
 
+  function renderLanguageSelect() {
+    el.language.innerHTML = '';
+    ML.LANGUAGES.forEach(function (entry) {
+      var opt = document.createElement('option');
+      opt.value = entry.id;
+      // The label stays in its own language on purpose: whoever cannot read
+      // the interface still finds „English“ in a German menu.
+      opt.textContent = entry.label;
+      if (entry.id === lang()) opt.selected = true;
+      el.language.appendChild(opt);
+    });
+  }
+
   function renderMenu() {
     el.profileSelect.innerHTML = '';
     Object.keys(state.profiles).forEach(function (id) {
@@ -1723,6 +1755,7 @@
       el.profileSelect.appendChild(opt);
     });
     el.threshold.value = (thresholdMs() / 1000).toString();
+    renderLanguageSelect();
     el.profileDelete.disabled = Object.keys(state.profiles).length <= 1;
     // An armed delete must not survive a change of context.
     deleteConfirmPending = false;
@@ -1783,6 +1816,7 @@
   el.profileSelect.addEventListener('change', function () {
     state.activeProfile = el.profileSelect.value;
     persist();
+    applyLanguage();   // the language belongs to the profile and switches with it
     renderMenu();
     restartSession();
     el.menu.hidden = false;   // the menu stays open, the switch is visible
@@ -1791,9 +1825,14 @@
   el.profileAdd.addEventListener('click', function () {
     var name = el.profileName.value.trim();
     if (name === '') return;
-    var created = ML.createProfile(state, name, Date.now(), ML.DEFAULT_LANGUAGE);
+    // A profile created in the menu inherits the language of the one that is
+    // active: whoever operates the menu is reading it in that language, which
+    // is the better guess than the browser setting.
+    var inherited = lang();
+    var created = ML.createProfile(state, name, Date.now(), inherited);
     state = created.state;
     persist();
+    applyLanguage();
     el.profileName.value = '';
     renderMenu();
     restartSession();
@@ -1810,6 +1849,7 @@
     }
     state = ML.deleteProfile(state, el.profileSelect.value);
     persist();
+    applyLanguage();   // deleting makes another profile active
     renderMenu();
     restartSession();
     el.menu.hidden = false;
@@ -1820,6 +1860,28 @@
     if (isNaN(seconds) || seconds < 1 || seconds > 30) { renderMenu(); return; }
     profile().settings.thresholdMs = Math.round(seconds * 1000);
     persist();
+  });
+
+  // A language change touches no card. It happens with the menu open, so the
+  // clock is stopped anyway — closeMenu starts it again through updateTimer,
+  // exactly as after every other visit to the menu. No new place stops or
+  // starts the clock here.
+  el.language.addEventListener('change', function () {
+    var chosen = ML.resolveLanguage(el.language.value);
+    profile().settings.lang = chosen;
+    persist();
+
+    applyLanguage();        // static texts, <html lang>, title, voice
+    relabelQuestion();      // the waiting question keeps its factors, not its texts
+    render();               // progress line
+    renderMenu();           // stats, legend, rules, grid, detail, delete button, selector
+
+    // rec.lang is set when the recogniser is built and does not change on a
+    // running one. Discarding it is enough: closeMenu starts listening again
+    // and buildRecognizer then reads the new speech tag. Without this the
+    // child would speak English and be recognised in German.
+    stopListening();
+    micUpdate(true);
   });
 
   // The toolbar buttons are created above, so this call catches them too;
@@ -1836,6 +1898,8 @@
                    profile: profile, persist: persist,
                    lang: lang, t: t, applyLanguage: applyLanguage,
                    ackFeedbackText: ackFeedbackText,
+                   relabelQuestion: relabelQuestion,
+                   renderLanguageSelect: renderLanguageSelect,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
                    renderGrid: renderGrid, renderStats: renderStats,
                    renderTtsButton: renderTtsButton, speak: speak,
