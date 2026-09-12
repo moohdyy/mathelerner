@@ -510,6 +510,7 @@
           t(marked[j].getAttribute(I18N_ATTRS[a][0])));
       }
     }
+    pickVoice();
   }
 
   var storageWarningShown = false;
@@ -851,21 +852,34 @@
   // otherwise it recognises the app's own speech output as an answer.
   var isReadingAloud = false;
 
-  function pickGermanVoice() {
+  // Prefers an exact match on the pack's speech tag, then any voice of the
+  // same language. Some engines report "en_US" with an underscore.
+  function pickVoice() {
     if (!tts.supported) return;
+    tts.voice = null;
+    var want = ML.locale(lang()).speechLang.toLowerCase();
+    var base = want.split('-')[0];
     var voices = window.speechSynthesis.getVoices();
-    for (var i = 0; i < voices.length; i++) {
-      if (voices[i].lang && voices[i].lang.toLowerCase().indexOf('de') === 0) {
+    var i;
+    for (i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.toLowerCase().replace('_', '-') === want) {
         tts.voice = voices[i];
         return;
       }
     }
+    for (i = 0; i < voices.length; i++) {
+      if (voices[i].lang && voices[i].lang.toLowerCase().indexOf(base) === 0) {
+        tts.voice = voices[i];
+        return;
+      }
+    }
+    // Nothing fitting: the browser's default voice stays, exactly as before.
   }
 
   if (tts.supported) {
-    pickGermanVoice();
+    pickVoice();
     // On the first call the voice list is often still empty.
-    window.speechSynthesis.addEventListener('voiceschanged', pickGermanVoice);
+    window.speechSynthesis.addEventListener('voiceschanged', pickVoice);
   }
 
   // Some engines stop the speech output without ever reporting onend or
@@ -878,7 +892,7 @@
     if (!tts.supported) { if (onEnd) onEnd(); return; }
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'de-DE';
+    u.lang = ML.locale(lang()).speechLang;
     if (tts.voice) u.voice = tts.voice;
     u.rate = 0.95;
     var done = false;
@@ -1201,25 +1215,30 @@
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
 
   // Chrome 139+ can recognise on-device; otherwise fall back to the server
-  // route silently. The answer applies to the whole session, but the
-  // recogniser is now built per pass: ask once, then apply synchronously.
-  var localAvailable = null;   // null = no answer yet
-  var localQueried = false;
+  // route silently. The recogniser is built per pass: ask once per speech
+  // tag, then apply synchronously.
+  // The answer applies per speech tag, not per session: that German is
+  // available locally says nothing about English.
+  var localAvailable = {};   // speechLang -> true/false, absent = no answer yet
+  var localQueried = {};
 
   function requestLocalProcessing(rec) {
     if (typeof SR.available !== 'function') return;
-    if (localAvailable !== null) {
-      if (localAvailable) rec.processLocally = true;
+    var tag = ML.locale(lang()).speechLang;
+    if (localAvailable[tag] !== undefined) {
+      if (localAvailable[tag]) rec.processLocally = true;
       return;
     }
-    if (localQueried) return;   // the answer is still pending
-    localQueried = true;
+    if (localQueried[tag]) return;   // the answer is still pending
+    localQueried[tag] = true;
     try {
-      Promise.resolve(SR.available({ langs: ['de-DE'], processLocally: true }))
+      Promise.resolve(SR.available({ langs: [tag], processLocally: true }))
         .then(function (status) {
-          if (status === 'available') { localAvailable = true; rec.processLocally = true; }
-          else if (status === 'downloadable' && typeof SR.install === 'function') {
-            SR.install({ langs: ['de-DE'], processLocally: true });
+          if (status === 'available') {
+            localAvailable[tag] = true;
+            rec.processLocally = true;
+          } else if (status === 'downloadable' && typeof SR.install === 'function') {
+            SR.install({ langs: [tag], processLocally: true });
           }
         })
         .catch(function () { /* the server route stays */ });
@@ -1231,7 +1250,7 @@
   // would long be overwritten by the time a late result arrives.
   function buildRecognizer(forCard, runId) {
     var rec = new SR();
-    rec.lang = 'de-DE';
+    rec.lang = ML.locale(lang()).speechLang;
     rec.continuous = false;
     rec.interimResults = false;
     rec.maxAlternatives = 5;
