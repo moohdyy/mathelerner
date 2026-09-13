@@ -147,6 +147,20 @@ sind mehrfach falsch umgesetzt worden:
 - **Nach einem finalen Ergebnis folgt im Dauermodus kein `end`.** Der Watchdog
   muss dort die lange Frist stellen; mit der kurzen schösse er drei Sekunden
   nach jeder Antwort den laufenden Durchgang ab.
+- **Im Dauermodus schließt `speechend` die Äußerung ab, nicht `end`.** Der
+  Erkenner markiert seine Segmente dort oft nie als final — er hält den
+  Durchgang für die nächste Äußerung offen. Die richtige Antwort steht dann
+  als Zwischenergebnis da, während die Uhr gegen die Gesamtfrist läuft, und
+  **die Frist wertet die Karte falsch**: gemessen mit „[0 interim] 12“ auf 3×4
+  und „One“ auf 1×1, beide richtig, beide verloren. Deshalb bewaffnet das
+  Sprechende eine Nachfrist (`STT_SETTLE_MS`), und `settleUtterance` wertet
+  danach den vorliegenden Stand mit `assumeFinal` — dieselbe Rettung, die
+  vorher im `end`-Handler saß und die der Dauermodus ersatzlos entfernt hätte.
+  Bewaffnet wird sie von **beiden** Sprechende-Signalen, `speechend` und dem
+  Pegel-Detektor: ein Durchgang, der nie ein `speechend` sieht, bliebe sonst
+  ewig offen. Die Nachfrist muss deutlich über der Erkennungslatenz (gemessen
+  1,5–6,2 s ... 2,5 s decken den häufigen Fall) und deutlich unter der
+  Gesamtfrist liegen; wer sie verkürzt, wertet Präfixe.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.

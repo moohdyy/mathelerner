@@ -1097,6 +1097,16 @@
   var STT_ALIVE_TIMEOUT_MS = 20000;
   // Brake against a restart storm when start() throws immediately.
   var STT_RESTART_DELAY_MS = 300;
+  // After the end of speaking until the utterance is concluded by force.
+  // Continuously the recogniser often never marks its segments final — it
+  // keeps the pass open for the next utterance. The answer then stands there
+  // as an interim result while the clock runs on towards the deadline, and
+  // the deadline grades the card WRONG: measured with "[0 interim] 12" on
+  // 3x4 and "One" on 1x1, both correct, both lost.
+  // Long enough for a genuinely final result to still arrive (the recognition
+  // latency was measured at 1.5 to 6.2 s), short enough to stay far below the
+  // overall deadline of 3 x threshold.
+  var STT_SETTLE_MS = 2500;
 
   var stt = {
     supported: !!SR,
@@ -1105,6 +1115,7 @@
     recognizer: null,
     spokeEndAt: 0,
     voiceEndAt: 0,      // end of speaking from the level detector, 0 = none yet
+    onVoiceEnd: null,   // the running pass concludes its utterance from here
     permissionDenied: false,
     consecutiveErrors: 0,
     // Bookkeeping about the running listening pass.
@@ -1398,9 +1409,58 @@
     var pass = {
       segments: [],     // latest snapshot of the recognition result
       consumed: 0,      // segments of utterances already reported on
+      settle: null,     // timer handle: conclude the utterance by force
       sawSpeech: false, // was there speech since the last report?
       handled: false    // has this pass already graded?
     };
+
+    function clearSettle() {
+      if (pass.settle === null) return;
+      clearTimeout(pass.settle);
+      pass.settle = null;
+    }
+
+    // The conclusion of ONE utterance. Continuously no 'end' follows it any
+    // more — the pass stays open for the next one — so the two signals that
+    // the child has stopped speaking have to trigger it: the recogniser's
+    // 'speechend' and the level detector. Whichever comes first arms it.
+    //
+    // Without this the segments hang unfinished until the deadline grades the
+    // card wrong, which is exactly what happened to a correct "12" and a
+    // correct "One".
+    function armSettle() {
+      clearSettle();
+      pass.settle = setTimeout(function () {
+        pass.settle = null;
+        settleUtterance('no final result after the end of speaking');
+      }, STT_SETTLE_MS);
+    }
+
+    // Grades what stands there, treating it as final. Same route as every
+    // other answer — applyResult, never the storage layer directly.
+    function settleUtterance(why) {
+      clearSettle();
+      if (rec !== stt.recognizer) return 'skipped';
+      if (pass.handled || forCard !== session.currentKey || session.awaitingAck) {
+        return 'skipped';
+      }
+      var outcome = applyResult(true);
+      if (outcome === 'pending' && pass.sawSpeech) {
+        // Speech, but nothing usable came of it. Grade nothing and ask again —
+        // a child with a bad microphone must not lose progress to a deadline
+        // it never got to see.
+        sttLog(runId, forCard, why + ' \u2014 asking again');
+        micReport('error', t('mic.lost'));
+        retryUnderstood(t('mic.notUnderstood'));
+      }
+      return outcome;
+    }
+
+    // The level detector reports the end of speaking too, and earlier than the
+    // recogniser. A pass that never sees 'speechend' would otherwise never be
+    // concluded. buildRecognizer of the next question overwrites this; the
+    // identity guard in settleUtterance keeps a stale one harmless.
+    stt.onVoiceEnd = armSettle;
 
     // The end of speaking of the utterance being graded — the earliest signal
     // wins and later ones leave it alone. retryUnderstood() puts it back to 0,
@@ -1456,6 +1516,7 @@
       // Only a graded value ends the pass — nextQuestion() builds the next
       // recogniser and this one is aborted with it.
       pass.handled = true;
+      clearSettle();
       // What is shown is the wording the graded value came from — even when it
       // is wrong. The message has to stand before submitAnswer: otherwise the
       // next question follows in the same tick and overwrites it.
@@ -1531,6 +1592,7 @@
       // 'speechend' is followed by 'result' or 'error'; if both fail to come,
       // the recognition hangs.
       sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no result after speechend');
+      armSettle();
       if (!validForDisplay()) return;
       mic.speaking = false;
       mic.processing = true;
@@ -1572,6 +1634,7 @@
       // Whatever the error is, this pass has come to its conclusion here — the
       // end must not treat it as a silently lost utterance on top of that.
       pass.handled = true;
+      clearSettle();
       // An error is normally followed by 'end'. If that fails to come, the
       // watchdog has to take over.
       sttHeartbeat(rec, STT_START_TIMEOUT_MS, 'no end after error');
@@ -1632,15 +1695,7 @@
       // Either way the clock has to start over (retryUnderstood), because a
       // child with a bad microphone must not lose its progress to a deadline
       // it never got to see.
-      var outcome = 'skipped';
-      if (!pass.handled && forCard === session.currentKey && !session.awaitingAck) {
-        outcome = applyResult(true);
-        if (outcome === 'pending' && pass.sawSpeech) {
-          sttLog(runId, forCard, 'ended after speech without a result \u2014 asking again');
-          micReport('error', t('mic.lost'));
-          retryUnderstood(t('mic.notUnderstood'));
-        }
-      }
+      var outcome = settleUtterance('ended after speech without a result');
       mic.speaking = false;
       mic.processing = false;
       // The browser ends after every result; restart while the mode is active.
@@ -1705,6 +1760,9 @@
     mic.speaking = false;
     mic.processing = true;
     micUpdate();
+    // The running pass concludes its utterance from here as well — it may
+    // never see a 'speechend' of its own.
+    if (typeof stt.onVoiceEnd === 'function') stt.onVoiceEnd();
   }
 
   function voiceStart() {
