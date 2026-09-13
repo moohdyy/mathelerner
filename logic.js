@@ -9,6 +9,12 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  /* The version of the shipped code, MAJOR.MINOR.PATCH. This is the only
+     place it is written down; the menu reads it from here. Every commit that
+     touches index.html or logic.js raises it exactly once — patch for fixes,
+     minor for new behaviour. See CLAUDE.md. */
+  var VERSION = '1.0.0';
+
   /* ===================================================================
      Section 0 — languages
      ===================================================================
@@ -120,6 +126,7 @@
         'menu.progress': 'Fortschritt',
         'menu.allCards': 'Alle 100 Aufgaben',
         'menu.close': 'Zurück zum Üben',
+        'menu.version': 'Version {version}',
 
         // These stats.* keys are the only texts that reach
         // el.stats.innerHTML (see renderStats in index.html) instead of
@@ -240,6 +247,7 @@
         'menu.progress': 'Progress',
         'menu.allCards': 'All 100 questions',
         'menu.close': 'Back to practice',
+        'menu.version': 'Version {version}',
 
         // These stats.* keys are the only texts that reach
         // el.stats.innerHTML (see renderStats in index.html) instead of
@@ -1061,6 +1069,7 @@
   }
 
   return {
+    VERSION: VERSION,
     DEFAULT_LANGUAGE: DEFAULT_LANGUAGE,
     REQUIRED_LOCALE_FIELDS: REQUIRED_LOCALE_FIELDS,
     LANGUAGES: LANGUAGES,

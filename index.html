@@ -249,6 +249,15 @@
   }
   .row { display: flex; gap: .5rem; align-items: flex-end; flex-wrap: wrap; }
   #menu p { margin: 0; }
+  /* The version sits in the bottom right corner and stays quiet. The menu is
+     a column with `align-items: flex-start`, so the line has to stretch
+     before `text-align: right` has anything to push against; `margin-top:
+     auto` keeps it at the bottom while the menu is shorter than the screen.
+     Two ids, otherwise `#menu p { margin: 0 }` above would win. */
+  #menu #version {
+    align-self: stretch; margin-top: auto; text-align: right;
+    font-size: .75rem; color: var(--muted); opacity: .7;
+  }
   #stats { font-size: .9rem; color: var(--muted); line-height: 1.7; }
   #stats table { border-collapse: collapse; margin-top: .5rem; }
   #stats td { padding: .1rem .8rem .1rem 0; font-variant-numeric: tabular-nums; }
@@ -408,6 +417,10 @@
   <p id="card-detail" aria-live="polite"></p>
 
   <button id="menu-close" data-i18n="menu.close"></button>
+
+  <!-- No data-i18n: the line carries a parameter, so applyLanguage() cannot
+       fill it from the attribute alone; showVersion() does it instead. -->
+  <p id="version"></p>
 </section>
 
 <main id="trainer">
@@ -468,6 +481,7 @@
     micHeard: document.getElementById('mic-heard'),
     progress: document.getElementById('progress'),
     storageWarning: document.getElementById('storage-warning'),
+    version: document.getElementById('version'),
     trainer: document.getElementById('trainer'),
     done: document.getElementById('done'),
     freeplay: document.getElementById('freeplay'),
@@ -554,6 +568,7 @@
     for (var i = 0; i < nodes.length; i++) {
       nodes[i].textContent = t(nodes[i].getAttribute('data-i18n'));
     }
+    el.version.textContent = t('menu.version', { version: ML.VERSION });
     for (var a = 0; a < I18N_ATTRS.length; a++) {
       var marked = document.querySelectorAll('[' + I18N_ATTRS[a][0] + ']');
       for (var j = 0; j < marked.length; j++) {

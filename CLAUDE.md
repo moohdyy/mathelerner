@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 179 Tests)
+node --test                          # gesamte Suite (aktuell 181 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -43,7 +43,7 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 179 Tests.
+testbar, und genau daran hängen die 181 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -56,6 +56,24 @@ in `index.html`: ob eine Antwort zählt. Welcher Wert aus einem
 Erkennungsergebnis gewertet wird, rechnet `ML.chooseSpokenAnswer` — sie hat
 genau deshalb den Weg nach `logic.js` genommen, weil sie in `index.html`
 unsichtbar und ungetestet falsch lag.
+
+## Version
+
+`ML.VERSION` ganz oben in `logic.js` ist die **einzige** Stelle, an der die
+Version des ausgelieferten Codes steht. Sie folgt `MAJOR.MINOR.PATCH`, und das
+Menü zeigt sie unten rechts an — eine zweite Stelle mit derselben Zahl liefe
+irgendwann auseinander und die Anzeige würde lügen.
+
+**Jeder Commit, der `index.html` oder `logic.js` ändert, erhöht sie genau
+einmal**: Patch für Korrekturen und Kleinkram, Minor für neue Funktionen,
+Major nur auf ausdrückliche Ansage. Commits, die allein Tests oder Dokumente
+berühren, lassen sie stehen. Eine vergessene Erhöhung ist derselbe Fehler wie
+eine doppelte — die angezeigte Zahl soll beantworten, welcher Stand gerade im
+Browser läuft.
+
+Das Element `#version` trägt **kein** `data-i18n`. Der Text hat einen
+Platzhalter, und `data-i18n` kann keine Parameter; `applyLanguage()` setzt die
+Zeile deshalb selbst und nimmt damit auch jeden Sprachwechsel mit.
 
 ## Fachlogik, die man leicht falsch macht
 
