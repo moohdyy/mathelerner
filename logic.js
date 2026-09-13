@@ -99,6 +99,7 @@
         'card.notSeen': 'noch nicht drangekommen',
         'card.score': '{correct} von {seen} richtig',
         'card.refreshDue': 'Auffrischung fällig',
+        'card.resting': 'ruht — Reihe nicht ausgewählt',
         'card.refreshIn': { one: 'Auffrischung in {n} Tag',
                             other: 'Auffrischung in {n} Tagen' },
         'time.seconds': '{value} s',
@@ -113,6 +114,7 @@
         'menu.namePlaceholder': 'Name',
         'menu.add': 'Anlegen',
         'menu.settings': 'Einstellungen',
+        'menu.rows': 'Zahlenreihen',
         'menu.threshold': 'Zeitschwelle in Sekunden',
         'menu.language': 'Sprache',
         'menu.progress': 'Fortschritt',
@@ -122,7 +124,7 @@
         // These stats.* keys are the only texts that reach
         // el.stats.innerHTML (see renderStats in index.html) instead of
         // textContent — they must never contain markup characters (<, >, &).
-        'stats.open': 'offen: {n} von 100',
+        'stats.open': 'offen: {n} von {total}',
         'stats.mastered': 'gemeistert: {n}',
         'stats.totalAnswers': 'Antworten insgesamt: {n}',
         'stats.sessions': 'Sitzungen: {n}',
@@ -141,10 +143,19 @@
           'gemeisterte Aufgabe ist zur Auffrischung fällig.',
         'grid.hint': 'Tippe eine Aufgabe an, um zu sehen, wie sie steht.',
 
+        'rows.hint': 'Abgefragt wird eine Aufgabe nur, wenn beide Zahlen ausgewählt sind. ' +
+          'Wer die 1 und die 10 abwählt, sieht keine Aufgabe mehr mit einer 1 oder 10.',
+        'rows.all': 'alle',
+        'rows.hard': 'nur schwere',
+        'rows.rowLabel': 'Reihe {n}',
+        'rows.count': { one: '1 von 100 Aufgaben ausgewählt',
+                        other: '{n} von 100 Aufgaben ausgewählt' },
+        'rows.lastOne': 'Mindestens eine Zahl muss ausgewählt bleiben.',
+
         'trainer.answerLabel': 'Antwort',
         'trainer.ok': 'OK',
         'trainer.next': 'Weiter',
-        'trainer.progress': 'noch {n} von 100 offen',
+        'trainer.progress': 'noch {n} von {total} offen',
         'trainer.wrong': 'Richtig wäre {expected} — mit Enter oder dem Knopf weiter',
         'trainer.wrongTimeUp': 'Zeit ist um. Richtig wäre {expected} — mit Enter oder dem Knopf weiter',
 
@@ -208,6 +219,7 @@
         'card.notSeen': 'not come up yet',
         'card.score': '{correct} of {seen} correct',
         'card.refreshDue': 'refresher due',
+        'card.resting': 'resting — row not selected',
         'card.refreshIn': { one: 'refresher in {n} day',
                             other: 'refresher in {n} days' },
         'time.seconds': '{value} s',
@@ -222,6 +234,7 @@
         'menu.namePlaceholder': 'Name',
         'menu.add': 'Create',
         'menu.settings': 'Settings',
+        'menu.rows': 'Number rows',
         'menu.threshold': 'Time threshold in seconds',
         'menu.language': 'Language',
         'menu.progress': 'Progress',
@@ -231,7 +244,7 @@
         // These stats.* keys are the only texts that reach
         // el.stats.innerHTML (see renderStats in index.html) instead of
         // textContent — they must never contain markup characters (<, >, &).
-        'stats.open': 'open: {n} of 100',
+        'stats.open': 'open: {n} of {total}',
         'stats.mastered': 'mastered: {n}',
         'stats.totalAnswers': 'answers in total: {n}',
         'stats.sessions': 'sessions: {n}',
@@ -250,10 +263,19 @@
           'mastered question is due for a refresher.',
         'grid.hint': 'Tap a question to see how it is doing.',
 
+        'rows.hint': 'A question is only asked when both of its numbers are selected. ' +
+          'Switch off the 1 and the 10 and no question holds a 1 or a 10 any more.',
+        'rows.all': 'all',
+        'rows.hard': 'hard ones only',
+        'rows.rowLabel': 'row {n}',
+        'rows.count': { one: '1 of 100 questions selected',
+                        other: '{n} of 100 questions selected' },
+        'rows.lastOne': 'At least one number has to stay selected.',
+
         'trainer.answerLabel': 'Answer',
         'trainer.ok': 'OK',
         'trainer.next': 'Continue',
-        'trainer.progress': '{n} of 100 still open',
+        'trainer.progress': '{n} of {total} still open',
         'trainer.wrong': 'The answer is {expected} — press Enter or the button to continue',
         'trainer.wrongTimeUp': 'Time is up. The answer is {expected} — press Enter or the button to continue',
 
@@ -554,6 +576,67 @@
     return { box: 0, due: 0, refreshLevel: 0, seen: 0, correct: 0, bestMs: null, lastMs: null };
   }
 
+  // Which rows are being asked at all. A row is a factor; the selection is the
+  // set of numbers a question may hold.
+  var ALL_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  // The quick choice "hard ones only". The rows left out are the ones a child
+  // can usually say without thinking.
+  var HARD_ROWS = [3, 4, 6, 7, 8, 9];
+
+  // A stored selection must never be able to empty the pool: anything broken,
+  // unknown or empty heals to all rows. The same reasoning as for a missing
+  // settings.lang — a damaged value costs no progress, it just asks
+  // everything. Always a fresh array, so nobody writes into the constant.
+  function normalizeRows(value) {
+    var rows = [], i, n;
+    if (Object.prototype.toString.call(value) === '[object Array]') {
+      for (i = 0; i < value.length; i++) {
+        n = Number(value[i]);
+        if (isFinite(n) && n === Math.round(n) && n >= 1 && n <= 10 &&
+            rows.indexOf(n) === -1) rows.push(n);
+      }
+    }
+    if (rows.length === 0) return ALL_ROWS.slice();
+    return rows.sort(function (x, y) { return x - y; });
+  }
+
+  // A card is asked only when BOTH of its factors belong to selected rows.
+  // "Leave the tens out" has to mean that no question holds a ten — with one
+  // factor being enough, 3x10 would stay in because the three is selected,
+  // and switching off an easy row would achieve nothing. Both writings are
+  // treated alike: the rule does not care which factor comes first.
+  function cardSelected(a, b, rows) {
+    var list = normalizeRows(rows);
+    return list.indexOf(a) !== -1 && list.indexOf(b) !== -1;
+  }
+
+  // The selected cards in the order of the full pool, so grid and counter
+  // never disagree about what "64 of 100" means.
+  function selectedCardKeys(rows) {
+    var list = normalizeRows(rows), keys = [], i, ab;
+    for (i = 0; i < ALL_CARD_KEYS.length; i++) {
+      ab = parseCardKey(ALL_CARD_KEYS[i]);
+      if (cardSelected(ab.a, ab.b, list)) keys.push(ALL_CARD_KEYS[i]);
+    }
+    return keys;
+  }
+
+  // Switching a row on or off. The last remaining row stays on: without a row
+  // there is no card to ask, and the trainer would show "all done" to a child
+  // who has learned nothing.
+  function toggleRow(rows, n) {
+    var list = normalizeRows(rows), at = list.indexOf(Number(n));
+    if (ALL_ROWS.indexOf(Number(n)) === -1) return list;
+    if (at === -1) {
+      list.push(Number(n));
+      return list.sort(function (x, y) { return x - y; });
+    }
+    if (list.length === 1) return list;
+    list.splice(at, 1);
+    return list;
+  }
+
   var DAY_MS = 86400000;
   var REFRESH_INTERVALS_MS = [2 * DAY_MS, 7 * DAY_MS, 30 * DAY_MS];
   var DEFAULT_THRESHOLD_MS = 3000;
@@ -621,13 +704,19 @@
   function pickNext(cards, opts) {
     var recent = opts.recent.slice(-RECENT_MEMORY);
     var keys = Object.keys(cards);
-    var i, key, card;
+    var rows = normalizeRows(opts.rows);
+    var i, key, card, ab;
 
     var learning = [];
     var due = [];
     for (i = 0; i < keys.length; i++) {
       key = keys[i];
       card = cards[key];
+      // The selection filters here, once, for the learning pool and the
+      // refreshes alike — a switched-off row must not come back through the
+      // refresh plan either.
+      ab = parseCardKey(key);
+      if (!cardSelected(ab.a, ab.b, rows)) continue;
       if (card.box < BOX_MASTERED) learning.push(key);
       else if (card.due > 0 && card.due <= opts.now) due.push(key);
     }
@@ -761,7 +850,7 @@
   var STORAGE_KEY = 'mathelerner.v1';
   var STATE_VERSION = 1;
   var DEFAULT_SETTINGS = { tts: false, stt: false, thresholdMs: DEFAULT_THRESHOLD_MS,
-                           lang: DEFAULT_LANGUAGE };
+                           lang: DEFAULT_LANGUAGE, rows: ALL_ROWS.slice() };
 
   function defaultState() {
     return { version: STATE_VERSION, activeProfile: null, profiles: {} };
@@ -775,7 +864,8 @@
       created: now,
       settings: { tts: DEFAULT_SETTINGS.tts, stt: DEFAULT_SETTINGS.stt,
                   thresholdMs: DEFAULT_SETTINGS.thresholdMs,
-                  lang: LOCALES[lang] ? lang : DEFAULT_LANGUAGE },
+                  lang: LOCALES[lang] ? lang : DEFAULT_LANGUAGE,
+                  rows: normalizeRows(DEFAULT_SETTINGS.rows) },
       cards: cards,
       stats: { sessions: 0, totalAnswers: 0 }
     };
@@ -808,6 +898,9 @@
         if (typeof pr.settings.lang !== 'string' || !LOCALES[pr.settings.lang]) {
           pr.settings.lang = DEFAULT_LANGUAGE;
         }
+        // Same reasoning for the row selection: a missing or damaged value
+        // heals to "ask everything" instead of costing a version bump.
+        pr.settings.rows = normalizeRows(pr.settings.rows);
         healthy[ids[i]] = pr;
       }
     }
@@ -858,10 +951,14 @@
     return { version: STATE_VERSION, activeProfile: active, profiles: profiles };
   }
 
+  // Only the selected rows count: a card that is not being asked can neither
+  // be open nor be finished, and a progress display counting cards nobody sees
+  // would never reach zero.
   function openCount(profile) {
-    var keys = Object.keys(profile.cards), n = 0;
+    var keys = selectedCardKeys(profile.settings && profile.settings.rows), n = 0;
     for (var i = 0; i < keys.length; i++) {
-      if (profile.cards[keys[i]].box < BOX_MASTERED) n++;
+      var card = profile.cards[keys[i]];
+      if (card && card.box < BOX_MASTERED) n++;
     }
     return n;
   }
@@ -877,11 +974,13 @@
             t(lang, 'box.name.2'), t(lang, 'box.name.3')];
   }
 
-  // How many cards sit in which box — the index is the box number.
+  // How many cards sit in which box — the index is the box number. Counts the
+  // selected rows only, for the same reason as openCount.
   function boxDistribution(profile) {
     var counts = [0, 0, 0, 0];
-    for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
-      var card = profile.cards[ALL_CARD_KEYS[i]];
+    var keys = selectedCardKeys(profile.settings && profile.settings.rows);
+    for (var i = 0; i < keys.length; i++) {
+      var card = profile.cards[keys[i]];
       if (card) counts[clampBox(card.box)]++;
     }
     return counts;
@@ -926,7 +1025,7 @@
 
   // One card, ready for display: box number, name, whether a refresh is due,
   // and a sentence that states everything worth knowing.
-  function cardView(card, key, now, lang) {
+  function cardView(card, key, now, lang, selected) {
     var ab = parseCardKey(key);
     var box = clampBox(card.box);
     var names = boxNames(lang);
@@ -936,21 +1035,27 @@
     parts.push(scoreText(card, lang));
     var refresh = refreshText(card, now, lang);
     if (refresh !== null) parts.push(refresh);
+    if (selected === false) parts.push(t(lang, 'card.resting'));
     return {
       key: key, a: ab.a, b: ab.b,
       box: box, name: names[box],
       refreshDue: refreshDue(card, now),
+      selected: selected !== false,
       description: parts.join(' · ')
     };
   }
 
   // Always all 100 cards in a fixed order — a profile missing a card would
-  // otherwise tear a hole into the grid.
+  // otherwise tear a hole into the grid. The resting rows stay in the grid as
+  // well, marked as unselected: their progress is parked, not lost, and that
+  // is worth seeing.
   function cardViews(profile, now, lang) {
-    var list = [];
+    var list = [], rows = normalizeRows(profile.settings && profile.settings.rows);
     for (var i = 0; i < ALL_CARD_KEYS.length; i++) {
       var key = ALL_CARD_KEYS[i];
-      list.push(cardView(profile.cards[key] || newCard(), key, now, lang));
+      var ab = parseCardKey(key);
+      list.push(cardView(profile.cards[key] || newCard(), key, now, lang,
+                         cardSelected(ab.a, ab.b, rows)));
     }
     return list;
   }
@@ -974,6 +1079,12 @@
     cardKey: cardKey,
     parseCardKey: parseCardKey,
     ALL_CARD_KEYS: ALL_CARD_KEYS,
+    ALL_ROWS: ALL_ROWS,
+    HARD_ROWS: HARD_ROWS,
+    normalizeRows: normalizeRows,
+    cardSelected: cardSelected,
+    selectedCardKeys: selectedCardKeys,
+    toggleRow: toggleRow,
     newCard: newCard,
     DAY_MS: DAY_MS,
     REFRESH_INTERVALS_MS: REFRESH_INTERVALS_MS,

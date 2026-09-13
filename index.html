@@ -278,6 +278,24 @@
     color: var(--bg); font-size: .8em; line-height: 1;
   }
 
+  /* The row picker. Ten square switches in the same vessel language as the
+     card grid, so that a switched-off row reads like a card that is not being
+     asked. Two signals again, never colour alone: a selected row is drawn
+     with a solid border in the text colour, a resting one with a dashed
+     border and muted digits. At least 2.75rem so a child's finger hits it. */
+  #row-picker { display: flex; flex-wrap: wrap; gap: .4rem; }
+  #menu #row-picker button {
+    width: 2.75rem; height: 2.75rem; padding: 0;
+    font-size: 1rem; font-variant-numeric: tabular-nums;
+    color: var(--muted); border-style: dashed;
+  }
+  #menu #row-picker button[aria-pressed="true"] {
+    color: var(--fg); border-color: var(--fg); border-style: solid;
+  }
+  #rows-count { font-size: .9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #rows-note { font-size: .9rem; color: var(--warn); }
+  #rows-hint { font-size: .9rem; color: var(--muted); line-height: 1.6; max-width: 46ch; }
+
   #box-legend {
     list-style: none; margin: 0; padding: 0; width: 100%; max-width: 34rem;
     display: flex; flex-direction: column; gap: .95rem; font-size: .9rem;
@@ -317,6 +335,17 @@
     font-size: .78rem; cursor: pointer;
   }
   #menu #card-grid .card.selected { outline: 2px solid var(--fg); outline-offset: 1px; }
+  /* A card of a switched-off row: still there, its progress still visible, but
+     visibly not in play. The vessel is emptied out — no grey body, only a
+     dashed outline, dashed like the switch that parked it. A dashed border
+     alone was not enough: on the filled cell it was invisible at 1 px
+     (measured in the browser, not guessed). */
+  #menu #card-grid .card.resting {
+    background: transparent; border-style: dashed; opacity: .65;
+  }
+  /* The heading numbers say which rows are in play, so the grid can be read
+     without counting cells. */
+  #card-grid th.on { color: var(--fg); }
   #card-detail {
     font-size: .9rem; color: var(--muted); line-height: 1.5;
     min-height: 3em; max-width: 46ch;
@@ -358,6 +387,16 @@
     <label for="language" data-i18n="menu.language"></label>
     <select id="language"></select>
   </div>
+
+  <h2 data-i18n="menu.rows"></h2>
+  <div id="row-picker" role="group" data-i18n-aria-label="menu.rows"></div>
+  <div class="row">
+    <button id="rows-all" type="button" data-i18n="rows.all"></button>
+    <button id="rows-hard" type="button" data-i18n="rows.hard"></button>
+  </div>
+  <p id="rows-count"></p>
+  <p id="rows-note" hidden></p>
+  <p id="rows-hint"></p>
 
   <h2 data-i18n="menu.progress"></h2>
   <div id="stats"></div>
@@ -440,6 +479,12 @@
     profileDelete: document.getElementById('profile-delete'),
     threshold: document.getElementById('threshold'),
     language: document.getElementById('language'),
+    rowPicker: document.getElementById('row-picker'),
+    rowsAll: document.getElementById('rows-all'),
+    rowsHard: document.getElementById('rows-hard'),
+    rowsCount: document.getElementById('rows-count'),
+    rowsNote: document.getElementById('rows-note'),
+    rowsHint: document.getElementById('rows-hint'),
     menuClose: document.getElementById('menu-close'),
     stats: document.getElementById('stats'),
     boxLegend: document.getElementById('box-legend'),
@@ -535,6 +580,13 @@
   }
 
   function thresholdMs() { return profile().settings.thresholdMs; }
+  // The selected rows, always healed — a damaged stored value asks everything
+  // instead of nothing.
+  function rows() { return ML.normalizeRows(profile().settings.rows); }
+  function cardInRows(key) {
+    var ab = ML.parseCardKey(key);
+    return ML.cardSelected(ab.a, ab.b, rows());
+  }
 
   // How long the flash lasts. Has to match the two CSS animations — they are
   // set to .72s.
@@ -677,7 +729,9 @@
   }
 
   function render() {
-    el.progress.textContent = t('trainer.progress', { n: ML.openCount(profile()) });
+    el.progress.textContent = t('trainer.progress', {
+      n: ML.openCount(profile()), total: ML.selectedCardKeys(rows()).length
+    });
   }
 
   function nextQuestion() {
@@ -686,6 +740,7 @@
       recent: session.recent,
       answered: session.answered,
       refreshesShown: session.refreshesShown,
+      rows: rows(),
       rng: Math.random
     });
 
@@ -700,8 +755,10 @@
     }
     var fromFreePlay = false;
     if (key === null) {
-      // Free practice: draw from all cards with equal weight.
-      var all = Object.keys(profile().cards);
+      // Free practice: draw from the selected cards with equal weight. A
+      // switched-off row stays switched off here too — otherwise the rows a
+      // child deliberately parked would come back through the back door.
+      var all = ML.selectedCardKeys(rows());
       key = all[Math.floor(Math.random() * all.length)];
       fromFreePlay = true;
     }
@@ -1659,7 +1716,8 @@
 
     // Only numbers from our own code go into innerHTML, never a profile name.
     var strong = function (n) { return '<strong>' + n + '</strong>'; };
-    var html = '<div>' + t('stats.open', { n: strong(ML.openCount(p)) }) +
+    var html = '<div>' + t('stats.open', { n: strong(ML.openCount(p)),
+                                            total: ML.selectedCardKeys(rows()).length }) +
                ' &middot; ' + t('stats.mastered', { n: strong(boxes[ML.BOX_MASTERED]) }) + '</div>' +
                '<div>' + t('stats.totalAnswers', { n: p.stats.totalAnswers }) +
                ' &middot; ' + t('stats.sessions', { n: p.stats.sessions }) + '</div>';
@@ -1753,11 +1811,13 @@
     corner.scope = 'col';
     corner.textContent = '×';
     headRow.appendChild(corner);
+    var selectedRows = rows();
     var a, b, th;
     for (b = 1; b <= 10; b++) {
       th = document.createElement('th');
       th.scope = 'col';
       th.textContent = b;
+      if (selectedRows.indexOf(b) !== -1) th.className = 'on';
       headRow.appendChild(th);
     }
     var thead = document.createElement('thead');
@@ -1770,6 +1830,7 @@
       var rowHead = document.createElement('th');
       rowHead.scope = 'row';
       rowHead.textContent = a;
+      if (selectedRows.indexOf(a) !== -1) rowHead.className = 'on';
       tr.appendChild(rowHead);
       for (b = 1; b <= 10; b++) {
         var v = byKey[ML.cardKey(a, b)];
@@ -1782,6 +1843,7 @@
         button.title = v.description;
         button.setAttribute('aria-label', v.description);
         button.setAttribute('data-description', v.description);
+        if (!v.selected) button.classList.add('resting');
         buildLevel(button, v.box, v.refreshDue);
         td.appendChild(button);
         tr.appendChild(td);
@@ -1806,6 +1868,58 @@
     el.cardDetail.textContent = button.getAttribute('data-description');
     el.cardDetail.classList.add('active');
   });
+
+  // The row picker. Rebuilt whole on every change: ten buttons cost nothing,
+  // and a single source for their state cannot drift apart from the setting.
+  function renderRows() {
+    var selected = rows();
+    el.rowPicker.innerHTML = '';
+    ML.ALL_ROWS.forEach(function (n) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = n;
+      button.setAttribute('data-row', n);
+      button.setAttribute('aria-pressed', selected.indexOf(n) !== -1 ? 'true' : 'false');
+      button.setAttribute('aria-label', t('rows.rowLabel', { n: n }));
+      el.rowPicker.appendChild(button);
+    });
+    el.rowsCount.textContent = t('rows.count', { n: ML.selectedCardKeys(selected).length });
+    el.rowsHint.textContent = t('rows.hint');
+  }
+
+  // One way in for every change of the selection. It touches no card and does
+  // not start the clock: this happens with the menu open, where the clock is
+  // stopped anyway, and closeMenu starts it again — exactly as after a
+  // language change.
+  function setRows(next) {
+    profile().settings.rows = next;
+    persist();
+    el.rowsNote.hidden = true;
+    renderRows();
+    renderStats();
+    renderBoxLegend();
+    renderGrid();
+    render();
+  }
+
+  el.rowPicker.addEventListener('click', function (ev) {
+    var button = ev.target.closest('button[data-row]');
+    if (!button) return;
+    var n = parseInt(button.getAttribute('data-row'), 10);
+    var current = rows();
+    var next = ML.toggleRow(current, n);
+    if (current.indexOf(n) !== -1 && next.length === current.length) {
+      // The last remaining row was tapped: nothing changes, and saying so is
+      // better than a switch that silently refuses.
+      el.rowsNote.textContent = t('rows.lastOne');
+      el.rowsNote.hidden = false;
+      return;
+    }
+    setRows(next);
+  });
+
+  el.rowsAll.addEventListener('click', function () { setRows(ML.ALL_ROWS.slice()); });
+  el.rowsHard.addEventListener('click', function () { setRows(ML.HARD_ROWS.slice()); });
 
   function renderLanguageSelect() {
     el.language.innerHTML = '';
@@ -1835,6 +1949,8 @@
     // An armed delete must not survive a change of context.
     deleteConfirmPending = false;
     el.profileDelete.textContent = t('menu.delete');
+    renderRows();
+    el.rowsNote.hidden = true;
     renderStats();
     renderBoxLegend();
     renderGrid();
@@ -1855,6 +1971,18 @@
 
   function closeMenu() {
     el.menu.hidden = true;
+    // A question whose row was switched off in the menu must not be asked any
+    // more. It is dropped ungraded — changing the selection never changes a
+    // card. nextQuestion sets the clock, the reading and the microphone, so
+    // nothing else happens here. A waiting acknowledgement keeps its question:
+    // the child is looking at the solution of an answer already given.
+    if (session.currentKey !== null && !session.awaitingAck &&
+        !cardInRows(session.currentKey)) {
+      el.trainer.hidden = false;
+      el.done.hidden = true;
+      nextQuestion();
+      return;
+    }
     el.trainer.hidden = session.currentKey === null;
     el.done.hidden = session.currentKey !== null;
     // The waiting question is measured from the return, not from before.
@@ -1976,6 +2104,7 @@
                    ackFeedbackText: ackFeedbackText,
                    relabelQuestion: relabelQuestion,
                    renderLanguageSelect: renderLanguageSelect,
+                   rows: rows, setRows: setRows, renderRows: renderRows,
                    renderMenu: renderMenu, openMenu: openMenu, closeMenu: closeMenu,
                    renderGrid: renderGrid, renderStats: renderStats,
                    renderTtsButton: renderTtsButton, speak: speak,

@@ -195,3 +195,62 @@ test('loadState keeps a valid lang', () => {
   const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
   assert.strictEqual(ML.loadState(storage).profiles.p1.settings.lang, 'en');
 });
+
+
+test('DEFAULT_SETTINGS asks every row', () => {
+  assert.deepStrictEqual(ML.DEFAULT_SETTINGS.rows, ML.ALL_ROWS);
+});
+
+test('a new profile asks every row', () => {
+  assert.deepStrictEqual(ML.newProfile('Kind', 0, 'de').settings.rows, ML.ALL_ROWS);
+});
+
+test('every profile has its own row selection', () => {
+  const a = ML.newProfile('Anna', 0, 'de');
+  const b = ML.newProfile('Ben', 0, 'de');
+  a.settings.rows.push(99);
+  assert.deepStrictEqual(b.settings.rows, ML.ALL_ROWS, 'no shared reference');
+  assert.deepStrictEqual(ML.DEFAULT_SETTINGS.rows, ML.ALL_ROWS, 'the defaults stay untouched');
+});
+
+test('a stored state without a row selection keeps all its progress', () => {
+  const profile = ML.newProfile('Kind', 0, 'de');
+  profile.cards['7x8'].box = 3;
+  delete profile.settings.rows;                      // as the earlier version wrote it
+  const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+  const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+
+  const loaded = ML.loadState(storage);
+  assert.strictEqual(loaded.profiles.p1.cards['7x8'].box, 3);
+  assert.deepStrictEqual(loaded.profiles.p1.settings.rows, ML.ALL_ROWS);
+});
+
+test('loadState heals an unusable row selection', () => {
+  const cases = [[], 'alle', 42, null, {}, [0, 11], ['x']];
+  cases.forEach((bad) => {
+    const profile = ML.newProfile('Kind', 0, 'de');
+    profile.settings.rows = bad;
+    const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+    const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+    assert.deepStrictEqual(ML.loadState(storage).profiles.p1.settings.rows, ML.ALL_ROWS,
+      'rows ' + JSON.stringify(bad));
+  });
+});
+
+test('loadState keeps a valid row selection, sorted', () => {
+  const profile = ML.newProfile('Kind', 0, 'de');
+  profile.settings.rows = [7, 3, 3];
+  const stored = { version: 1, activeProfile: 'p1', profiles: { p1: profile } };
+  const storage = { getItem: () => JSON.stringify(stored), setItem: () => {} };
+  assert.deepStrictEqual(ML.loadState(storage).profiles.p1.settings.rows, [3, 7]);
+});
+
+test('openCount counts only the cards of selected rows', () => {
+  const p = ML.newProfile('Anna', NOW, 'de');
+  p.settings.rows = [3, 7];
+  assert.strictEqual(ML.openCount(p), 4, '3x3, 3x7, 7x3, 7x7');
+  p.cards['7x7'].box = ML.BOX_MASTERED;
+  assert.strictEqual(ML.openCount(p), 3);
+  p.cards['1x1'].box = ML.BOX_MASTERED;
+  assert.strictEqual(ML.openCount(p), 3, 'a card outside the selection changes nothing');
+});

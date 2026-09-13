@@ -312,3 +312,24 @@ Ruling 27: Der gesamte Code ist Englisch, nur die sichtbaren Texte bleiben
   — Die Testdateien heißen entsprechend `progress.test.js`,
     `mic-status.test.js` und `time.test.js` (vorher `fortschritt`,
     `mikrofonstatus`, `zeit`).
+
+Ruling 28: Die Reihenauswahl filtert mit UND — eine Aufgabe wird nur gestellt,
+    wenn beide Faktoren ausgewählt sind (Nutzerentscheidung vom 2026-09-13).
+  — Die Anforderung nannte zwei Wünsche in einem Satz: auswählen, welche
+    Reihen abgefragt werden, und einfachere Reihen ausschließen können. Die
+    beiden vertragen sich nicht vollständig. Mit ODER („eine Karte gehört zur
+    7er-Reihe, sobald eine 7 darin steht") übt man eine einzelne Reihe
+    vollständig, aber das Ausschließen wirkt kaum: 1er, 2er und 10er
+    abgewählt lässt immer noch 7×10 und 8×1 stehen, weil 7 und 8 ausgewählt
+    sind — von 100 Aufgaben fallen neun weg. Mit UND ist die Auswahl die
+    Menge der erlaubten Zahlen: dieselbe Abwahl entfernt jede Aufgabe mit
+    einer 1, 2 oder 10 und lässt 49 übrig.
+  — Entschieden wurde für UND, weil das Ausschließen der ausdrückliche Anlass
+    war. Der Preis ist sichtbar: wer nur die 7 auswählt, bekommt allein 7×7.
+    Die Zeile „n von 100 Aufgaben ausgewählt" macht das sofort sichtbar,
+    statt es hinter einer leeren Trainingsrunde zu verstecken.
+  — Verworfen wurde eine Mischform (UND, aber eine einzeln gewählte Reihe
+    vollständig): die Regel spränge zwischen einer und zwei ausgewählten
+    Reihen um und wäre einem Kind nicht erklärbar.
+  — Abgewählte Reihen ruhen, sie werden nicht zurückgesetzt. Fortschritt
+    verschwindet in diesem Programm nur durch falsche Antworten.

@@ -41,7 +41,7 @@ Branch auswählen, Ordner `/ (root)`.
 |---|---|
 | 🔊 | Aufgabe vorlesen |
 | 🎤 | Antwort sprechen statt tippen |
-| ☰ | Profile, Sprache, Zeitschwelle, Fortschritt |
+| ☰ | Profile, Sprache, Zeitschwelle, Zahlenreihen, Fortschritt |
 | Enter oder der Knopf | Antwort abschicken, nach einem Fehler weiter |
 
 Unter der Aufgabe läuft ein Balken ab. Solange er grau ist, zählt eine
@@ -63,6 +63,23 @@ Auffrischungstermin.
 
 Der Fortschritt liegt pro Profil im `localStorage` des Browsers und wird nicht
 zwischen Geräten synchronisiert.
+
+## Zahlenreihen
+
+Unter „Zahlenreihen“ stehen zehn Schalter, einer je Zahl. **Abgefragt wird
+eine Aufgabe nur, wenn beide ihrer Zahlen ausgewählt sind.** Wer die 1 und
+die 10 abschaltet, sieht keine Aufgabe mehr, in der eine 1 oder eine 10
+vorkommt — aus 100 Aufgaben werden 64. „nur schwere“ lässt 3, 4, 6, 7, 8 und
+9 stehen (36 Aufgaben), „alle“ stellt alles wieder her. Mindestens eine Zahl
+bleibt immer ausgewählt.
+
+Eine abgeschaltete Reihe ruht nur: ihre Karten behalten Box, beste Zeit und
+Trefferquote und stehen weiter im Raster, dort als leere gestrichelte Zellen.
+Wird sie wieder eingeschaltet, geht es dort weiter, wo es aufgehört hat. Auch
+Auffrischungen ruhender Karten kommen nicht dran, und der Fortschritt („noch
+n von m offen“) zählt nur die ausgewählten Aufgaben. Ein Wechsel der Auswahl
+wertet nie eine Karte; steht gerade eine Aufgabe auf dem Bildschirm, die
+danach nicht mehr dazugehört, wird sie ungewertet durch eine neue ersetzt.
 
 ## Sprache
 
@@ -103,10 +120,11 @@ Firefox liefert keine `SpeechRecognition`-API; der 🎤-Knopf erscheint dort nic
 node --test
 ```
 
-148 Tests abgedeckt: Zahlenparser in beiden Sprachen, Sprachpakete und
+179 Tests abgedeckt: Zahlenparser in beiden Sprachen, Sprachpakete und
 Übersetzer, Scheduler, die zweistufige Zeitanzeige, Speicherschicht, der
 Anzeigezustand des Mikrofons, die Auswahl des gewerteten Werts aus einem
-Erkennungsergebnis und die Fortschrittsanzeige in `logic.js`.
+Erkennungsergebnis, die Auswahl der Zahlenreihen und die Fortschrittsanzeige
+in `logic.js`.
 Sprachein- und -ausgabe werden manuell verifiziert — sie brauchen echte Browser
 und ein echtes Mikrofon.
 

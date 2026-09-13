@@ -200,3 +200,42 @@ test('cardViews delivers all 100 cards in every language', () => {
   assert.strictEqual(ML.cardViews(profile, 0, 'en').length, 100);
   assert.strictEqual(ML.cardViews(profile, 0, 'en')[0].name, 'new');
 });
+
+
+test('the distribution counts only the cards of selected rows', () => {
+  const p = profile({ '3x7': { box: 2 }, '1x1': { box: 2 } });
+  p.settings.rows = [3, 7];
+  assert.deepStrictEqual(ML.boxDistribution(p), [3, 0, 1, 0], '3x3, 3x7, 7x3, 7x7');
+});
+
+test('the card grid keeps all 100 cards and marks the selected ones', () => {
+  const p = profile();
+  p.settings.rows = [3, 7];
+  const views = ML.cardViews(p, NOW, 'de');
+  assert.strictEqual(views.length, 100);
+  assert.strictEqual(views.filter((v) => v.selected).length, 4);
+  const byKey = Object.fromEntries(views.map((v) => [v.key, v]));
+  assert.ok(byKey['3x7'].selected);
+  assert.ok(!byKey['3x10'].selected, 'the tens are switched off');
+});
+
+test('without a stored selection every card is marked as selected', () => {
+  const p = profile();
+  delete p.settings.rows;
+  assert.strictEqual(ML.cardViews(p, NOW, 'de').filter((v) => v.selected).length, 100);
+});
+
+
+test('a resting card says so instead of looking untouched', () => {
+  const p = profile({ '3x10': { box: 1, seen: 4, correct: 3 } });
+  p.settings.rows = [3, 7];
+  const byKey = Object.fromEntries(ML.cardViews(p, NOW, 'de').map((v) => [v.key, v]));
+  assert.ok(byKey['3x10'].description.includes(ML.t('de', 'card.resting')));
+  assert.ok(byKey['3x10'].description.includes('3 von 4 richtig'), 'the progress stays visible');
+  assert.ok(!byKey['3x7'].description.includes(ML.t('de', 'card.resting')));
+});
+
+test('the open counter names the size of the selection, not a fixed 100', () => {
+  assert.strictEqual(ML.t('de', 'trainer.progress', { n: 3, total: 64 }), 'noch 3 von 64 offen');
+  assert.strictEqual(ML.t('de', 'stats.open', { n: 3, total: 64 }), 'offen: 3 von 64');
+});

@@ -220,3 +220,29 @@ test('everything mastered and nothing due yields null', () => {
 test('REFRESH_EVERY is 5', () => {
   assert.strictEqual(ML.REFRESH_EVERY, 5);
 });
+
+
+test('cards outside the selected rows are never picked', () => {
+  const cards = cardsFrom({ '1x1': 0, '3x3': 0, '3x10': 0 });
+  for (const rng of [0, 0.3, 0.6, 0.99]) {
+    assert.strictEqual(pick(cards, { rows: [3], rng: () => rng }), '3x3');
+  }
+});
+
+test('without a selection the whole pool is in play', () => {
+  const cards = cardsFrom({ '1x1': 0 });
+  assert.strictEqual(pick(cards), '1x1');
+  assert.strictEqual(pick(cards, { rows: undefined }), '1x1');
+});
+
+test('a due refresh outside the selected rows is not shown', () => {
+  const cards = cardsFrom({ '3x3': 0 });
+  dueRefresh(cards, '1x10', NOW - 1000);
+  assert.strictEqual(pick(cards, { rows: [3], answered: 100 }), '3x3');
+});
+
+test('all selected cards mastered means there is nothing left to ask', () => {
+  const cards = cardsFrom({ '3x3': ML.BOX_MASTERED, '1x1': 0 });
+  cards['3x3'].due = NOW + ML.DAY_MS;
+  assert.strictEqual(pick(cards, { rows: [3] }), null);
+});

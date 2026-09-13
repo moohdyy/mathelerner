@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 148 Tests)
+node --test                          # gesamte Suite (aktuell 179 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -43,7 +43,7 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 148 Tests.
+testbar, und genau daran hängen die 179 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -133,12 +133,38 @@ sind mehrfach falsch umgesetzt worden:
   Mit der kurzen Frist schießt der Watchdog die laufende Äußerung ab, sobald
   jemand drei Sekunden überlegt — im Log als „watchdog: no end after result“
   mitten in einer Antwort zu sehen.
+- **Eine Aufgabe wird nur gestellt, wenn *beide* Faktoren ausgewählt sind.**
+  `settings.rows` ist die Menge der Zahlen, die überhaupt vorkommen dürfen;
+  `ML.cardSelected` entscheidet mit UND, nicht mit ODER. Mit ODER wäre „die
+  10er abwählen" wirkungslos — 3×10 bliebe drin, weil die 3 ausgewählt ist,
+  und von 100 Aufgaben fielen ganze neun weg. Der Filter sitzt in `pickNext`
+  selbst, damit ihn kein Aufrufer vergessen kann, und er gilt für Lernkarten
+  und Auffrischungen gleichermaßen: eine geparkte Reihe darf nicht durch den
+  Auffrischungsplan zurückkommen. Das freie Weiterüben zieht aus derselben
+  Auswahl.
+- **Eine Auswahländerung wertet keine Karte und stellt die Uhr nicht.**
+  Dieselbe Regel wie beim Sprachwechsel: sie passiert im offenen Menü, wo die
+  Uhr steht, und `closeMenu` startet sie. Die einzige Sonderbewegung liegt in
+  `closeMenu`: gehört die wartende Aufgabe nicht mehr zur Auswahl, wird sie
+  **ungewertet** verworfen und `nextQuestion` zieht eine neue — die stellt die
+  Uhr ohnehin. Eine wartende Bestätigung (`awaitingAck`) behält ihre Aufgabe;
+  dort schaut das Kind auf die Lösung einer bereits gegebenen Antwort.
+  Karten ruhender Reihen behalten Box, Zeiten und Trefferquote.
+- **`openCount`, `boxDistribution` und das freie Weiterüben rechnen über die
+  Auswahl, `cardViews` über alle 100.** Die Anzeige „noch n von m offen"
+  erreichte sonst nie die Null, und im Raster verschwände der geparkte
+  Fortschritt, den man gerade sehen will. `trainer.progress` und `stats.open`
+  tragen deshalb `{total}` statt einer festen 100.
+- **Ein kaputtes `settings.rows` heilt auf „alle Reihen", nicht auf „keine".**
+  `ML.normalizeRows` erzwingt das an jeder Eingangsstelle, und `ML.toggleRow`
+  lässt die letzte Reihe stehen. Eine leere Auswahl hieße: kein Kartenpool,
+  „alles geschafft" für ein Kind, das nichts gelernt hat.
 - **`STATE_VERSION` bleibt 1.** Ein Versionssprung lässt `loadState` alle
   Profile verwerfen — wochenlanger Fortschritt für ein neues Feld. Ein
   fehlendes `settings.lang` wird beim Lesen geheilt, nicht durch einen
   Versionssprung erzwungen, und es wird auf `de` geheilt: bestehende Stände
   stammen aus der einsprachigen Fassung, unabhängig davon, was der Browser
-  meldet.
+  meldet. Für `settings.rows` gilt dasselbe.
 - **`refreshDue` wird gerechnet, nicht am Text erkannt.** Das Flag kommt aus
   `card.due` und `now`, der Text daraus — nicht umgekehrt. Ein Vergleich gegen
   „Auffrischung fällig" liefert in jeder anderen Sprache `false` und der
@@ -204,6 +230,12 @@ sind mehrfach falsch umgesetzt worden:
   fällt auf die Inhaltshöhe zurück (gemessen: 27,8 × 24 px). Quadratische
   Zellen entstehen dort über `height: 0; padding-bottom: calc(100% - 2px)` —
   die 2 px sind der Rahmen, den `box-sizing: border-box` zur Höhe zählt.
+- **Ein gestrichelter 1-px-Rahmen auf einer gefüllten Zelle ist unsichtbar.**
+  Die ruhenden Rasterzellen trugen zuerst nur `border-style: dashed` und
+  `opacity: .5` — im Bildschirmfoto war der Unterschied zu den aktiven Zellen
+  nicht zu erkennen. Sichtbar wurde es erst, als der graue Körper wegfiel
+  (`background: transparent`): ein leerer Umriss neben einem gefüllten Gefäß.
+  Die Kopfzahlen der aktiven Reihen tragen zusätzlich `.on`.
 - **Regeln für Elemente im Menü brauchen `#menu` im Selektor.** `#menu button`
   hat die Spezifität (1,0,1) und schlägt jede reine Klasse — eine
   `.card { border-style: dashed }` wäre wirkungslos verpufft.
