@@ -13,7 +13,7 @@
      place it is written down; the menu reads it from here. Every commit that
      touches index.html or logic.js raises it exactly once — patch for fixes,
      minor for new behaviour. See CLAUDE.md. */
-  var VERSION = '1.0.0';
+  var VERSION = '1.0.1';
 
   /* ===================================================================
      Section 0 — languages
@@ -491,7 +491,16 @@
   // is the last moment at which the utterance is still worth anything.
   function chooseSpokenAnswer(segments, opts) {
     var o = opts || {};
-    var list = segments || [];
+    // In continuous mode one recogniser spans several utterances, and the
+    // segments of an utterance already dealt with stay in front of the new
+    // one. 'from' is where the still unanswered utterance begins; everything
+    // before it belongs to a question that is settled. A broken value heals to
+    // the beginning, never to "everything skipped" — that would swallow a
+    // correct answer in silence and let the deadline grade the card wrong.
+    var from = typeof o.from === 'number' && isFinite(o.from) && o.from > 0
+      ? Math.floor(o.from)
+      : 0;
+    var list = (segments || []).slice(from);
     var out = { status: 'pending', value: null, alternative: 0, text: '', heard: '' };
     if (list.length === 0) return out;
 
@@ -852,6 +861,75 @@
   }
 
   /* ===================================================================
+     Section 4b — end of speaking from the level
+     =================================================================== */
+
+  // Why this exists at all: the answer time is measured up to the end of
+  // speaking, and the recogniser cannot supply it. Continuously it fires
+  // 'speechend' once for the whole pass, and its result arrives measurably
+  // late — 1454 ms after the end of speaking in one measurement, 6170 ms in
+  // the next. Hanging the time on the result would put that latency into the
+  // learning time, against a threshold of 4000 ms.
+  //
+  // So the level of the microphone is watched separately and the end of
+  // speaking read off it. Pure function: level in, event out — no
+  // AudioContext, no time of its own, testable without a browser. It decides
+  // only WHEN speaking stopped, never whether anything is graded.
+
+  var VOICE_ON = 0.020;      // RMS from here on it counts as speech
+  var VOICE_OFF = 0.010;     // hysteresis: below this the silence begins
+  var VOICE_HANG_MS = 400;   // this much silence, then the utterance is over
+
+  function newVoiceState() {
+    return { speaking: false, startedAt: 0, quietSince: 0 };
+  }
+
+  // One measuring step. Returns the follow-up state plus the event, if the
+  // step produced one — 'start', 'end' or null. 'at' is the moment the event
+  // BELONGS to: for the end that is the beginning of the silence, not its
+  // confirmation a hang time later. Anything else would add that hang time to
+  // every single answer.
+  function voiceStep(state, rms, now, opts) {
+    var o = opts || {};
+    var on = typeof o.on === 'number' ? o.on : VOICE_ON;
+    var off = typeof o.off === 'number' ? o.off : VOICE_OFF;
+    var hang = typeof o.hangMs === 'number' ? o.hangMs : VOICE_HANG_MS;
+    var s = state || newVoiceState();
+    var next = { speaking: s.speaking, startedAt: s.startedAt, quietSince: s.quietSince };
+    var out = { state: next, event: null, at: now };
+
+    // The analyser delivers NaN while the audio graph is being torn down. Read
+    // as silence that would end a running utterance and time-stamp an answer
+    // that is still being spoken.
+    if (typeof rms !== 'number' || !isFinite(rms)) return out;
+
+    if (!next.speaking) {
+      if (rms >= on) {
+        next.speaking = true;
+        next.startedAt = now;
+        next.quietSince = 0;
+        out.event = 'start';
+      }
+      return out;
+    }
+    if (rms >= off) {          // still speaking — the silence starts over
+      next.quietSince = 0;
+      return out;
+    }
+    if (next.quietSince === 0) {   // silence begins; remember WHEN
+      next.quietSince = now;
+      return out;
+    }
+    if (now - next.quietSince >= hang) {
+      out.event = 'end';
+      out.at = next.quietSince;
+      next.speaking = false;
+      next.quietSince = 0;
+    }
+    return out;
+  }
+
+  /* ===================================================================
      Section 5 — storage layer
      =================================================================== */
 
@@ -1119,6 +1197,11 @@
     MIC_HEARING: MIC_HEARING,
     MIC_PROCESSING: MIC_PROCESSING,
     micState: micState,
+    VOICE_ON: VOICE_ON,
+    VOICE_OFF: VOICE_OFF,
+    VOICE_HANG_MS: VOICE_HANG_MS,
+    newVoiceState: newVoiceState,
+    voiceStep: voiceStep,
     STORAGE_KEY: STORAGE_KEY,
     DEFAULT_SETTINGS: DEFAULT_SETTINGS,
     defaultState: defaultState,

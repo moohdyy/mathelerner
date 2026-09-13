@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 181 Tests)
+node --test                          # gesamte Suite (aktuell 198 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
@@ -43,7 +43,7 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 181 Tests.
+testbar, und genau daran hängen die 198 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -112,11 +112,41 @@ sind mehrfach falsch umgesetzt worden:
   Wertung nicht auseinanderlaufen. Die vier Stellen, die die Uhr neu starten,
   ziehen alle mit: das Ende des Vorlesens in `nextQuestion` und im
   🔊-Handler, `closeMenu` und `retryUnderstood`.
-- Die Zeit wird bis `onspeechend` gemessen, **nicht** bis zum Erkennungs­ergebnis
-  — die Erkennungslatenz von 0,5–1,5 s darf nicht in die Lernzeit einfließen.
-  `retryUnderstood` muss `stt.spokeEndAt` dabei mit zurücksetzen: der gemessene
-  Sprechschluss gehört zum verworfenen Versuch und läge sonst *vor* dem neuen
-  Uhrenstart — ein danach noch eintreffendes Ergebnis würde mit 0 ms gewertet.
+- **Der Erkenner läuft im Dauermodus (`continuous = true`).** Im
+  Einzeläußerungsmodus verliert Chrome kurze Äußerungen — „sechs“ kam in acht
+  von neun Versuchen gar nicht an: kein `result`, kein `nomatch`, kein
+  `error`, nur ein stilles `end`. Die Karte lief dann in den Fristablauf und
+  wurde **falsch** gewertet, obwohl das Kind richtig geantwortet hatte.
+  „sechsunddreißig“ kam immer durch — der Fehler trifft also ausgerechnet die
+  Aufgaben der kleinen Reihen. Wer auf `continuous = false` zurückstellt, holt
+  ihn zurück.
+- **Die Zeit wird bis zum Sprechschluss gemessen, den der Pegel liefert** —
+  `ML.voiceStep` in `logic.js`, gespeist aus einem eigenen Mikrofonstrom neben
+  der Erkennung. Der Erkenner kann ihn nicht liefern: im Dauermodus feuert
+  `speechend` einmal pro Durchgang statt einmal pro Äußerung, und sein Ergebnis
+  kommt gemessen 1,5 bis 6,2 s später. Bei einer Schwelle von 4000 ms wäre das
+  keine Unschärfe mehr, sondern die Messung selbst.
+  `ML.voiceStep` meldet das Ende **zum Beginn der Stille**, nicht zu deren
+  Bestätigung eine Nachlaufzeit später — sonst lägen 400 ms auf jeder Antwort.
+  Fällt der Pegel-Detektor aus (keine Berechtigung), fällt die Messung auf den
+  Zeitpunkt des Ergebnisses zurück; das kostet Genauigkeit und nichts weiter.
+  `retryUnderstood` muss `stt.spokeEndAt` **und** `stt.voiceEndAt` zurücksetzen:
+  der gemessene Sprechschluss gehört zum verworfenen Versuch und läge sonst
+  *vor* dem neuen Uhrenstart — ein danach noch eintreffendes Ergebnis würde mit
+  0 ms gewertet.
+- **Im Dauermodus überspannt ein Erkenner mehrere Äußerungen.** Die Segmente
+  einer bereits gemeldeten Äußerung bleiben vor der neuen stehen, deshalb
+  bekommt `ML.chooseSpokenAnswer` mit `from`, wo die noch unbeantwortete
+  beginnt. Ohne das würde die Antwort auf die *vorige* Frage gegen die
+  aktuelle gewertet. Ein kaputtes `from` heilt auf den Anfang, nie auf „alles
+  übersprungen“ — das verschluckte eine richtige Antwort lautlos.
+  „Nichts verstanden“ beendet den Durchgang daher **nicht** mehr; es verbraucht
+  nur die Segmente, und das Kind antwortet in denselben Erkenner hinein.
+  Aus demselben Grund hängt `sawSpeech` am Ergebnis und nicht an `speechstart`:
+  das feuert im Dauermodus nur einmal pro Durchgang.
+- **Nach einem finalen Ergebnis folgt im Dauermodus kein `end`.** Der Watchdog
+  muss dort die lange Frist stellen; mit der kurzen schösse er drei Sekunden
+  nach jeder Antwort den laufenden Durchgang ab.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.
@@ -146,11 +176,11 @@ sind mehrfach falsch umgesetzt worden:
   `retryUnderstood` — also die Uhr zurückstellen. Sind Segmente da, die nie
   final wurden, finalisiert er sie (`assumeFinal`), sonst wäre bei einem
   Erkenner ohne `isFinal` das Mikrofon dauerhaft taub.
-- **Nach einem Zwischenergebnis gilt die lange Watchdog-Frist.** Nach einem
-  finalen folgt `end` sofort, nach einem unfertigen spricht das Kind noch.
-  Mit der kurzen Frist schießt der Watchdog die laufende Äußerung ab, sobald
-  jemand drei Sekunden überlegt — im Log als „watchdog: no end after result“
-  mitten in einer Antwort zu sehen.
+- **Nach jedem Ergebnis gilt die lange Watchdog-Frist.** Früher galt das nur
+  für Zwischenergebnisse, weil nach einem finalen sofort `end` folgte; im
+  Dauermodus folgt es überhaupt nicht mehr. Mit der kurzen Frist schießt der
+  Watchdog die laufende Äußerung ab, sobald jemand drei Sekunden überlegt —
+  im Log als „watchdog: no end after result“ mitten in einer Antwort zu sehen.
 - **Eine Aufgabe wird nur gestellt, wenn *beide* Faktoren ausgewählt sind.**
   `settings.rows` ist die Menge der Zahlen, die überhaupt vorkommen dürfen;
   `ML.cardSelected` entscheidet mit UND, nicht mit ODER. Mit ODER wäre „die

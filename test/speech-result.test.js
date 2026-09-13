@@ -143,3 +143,51 @@ test('the same words are graded per language', () => {
   assert.strictEqual(
     choose([seg(true, 'forty five')], { lang: 'de' }).status, 'none');
 });
+
+/* ---------- segments already dealt with stay out ---------- */
+
+// In continuous mode one recogniser keeps running across several utterances:
+// the segments of an utterance that was already reported pile up in front of
+// the new one. Without a starting point the old ones would be graded again —
+// and a card would be graded on words the child spoke before the question was
+// asked anew.
+
+test('from skips the segments of a previous utterance', () => {
+  const out = choose([seg(true, 'keine ahnung'), seg(true, 'fünfundvierzig')], { from: 1 });
+  assert.strictEqual(out.status, 'value');
+  assert.strictEqual(out.value, 45);
+  assert.strictEqual(out.text, 'fünfundvierzig');
+});
+
+test('what was heard also starts at from', () => {
+  assert.strictEqual(
+    choose([seg(true, 'keine ahnung'), seg(false, 'fünf')], { from: 1 }).heard, 'fünf');
+});
+
+test('a number in a skipped segment is not graded', () => {
+  // The old utterance held the answer to the PREVIOUS question. Grading it
+  // would answer the new question with the old words.
+  assert.strictEqual(choose([seg(true, 'fünfundvierzig'), seg(true, 'weiß nicht')],
+                            { from: 1 }).status, 'none');
+});
+
+test('from beyond the last segment grades nothing', () => {
+  assert.strictEqual(choose([seg(true, 'fünfundvierzig')], { from: 1 }).status, 'pending');
+  assert.strictEqual(choose([seg(true, 'fünfundvierzig')], { from: 9 }).status, 'pending');
+});
+
+test('a broken from heals to the beginning', () => {
+  // Never to "everything skipped": that would swallow a correct answer in
+  // silence, and the deadline would grade the card wrong.
+  for (const bad of [undefined, null, -3, NaN, 'zwei', {}]) {
+    assert.strictEqual(choose([seg(true, 'fünfundvierzig')], { from: bad }).value, 45,
+                       'from=' + String(bad));
+  }
+});
+
+test('assumeFinal applies to the segments from from on', () => {
+  const out = choose([seg(true, 'vier'), seg(false, 'fünfundvierzig')],
+                     { from: 1, assumeFinal: true });
+  assert.strictEqual(out.status, 'value');
+  assert.strictEqual(out.value, 45);
+});

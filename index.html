@@ -1104,6 +1104,7 @@
     active: false,
     recognizer: null,
     spokeEndAt: 0,
+    voiceEndAt: 0,      // end of speaking from the level detector, 0 = none yet
     permissionDenied: false,
     consecutiveErrors: 0,
     // Bookkeeping about the running listening pass.
@@ -1370,7 +1371,18 @@
   function buildRecognizer(forCard, runId) {
     var rec = new SR();
     rec.lang = ML.locale(lang()).speechLang;
-    rec.continuous = false;
+    // Continuous, and that is not a detail: in single-utterance mode Chrome's
+    // recogniser drops a short utterance without a trace — no result, no
+    // nomatch, no error, just a silent end. Measured with "sechs": three
+    // attempts, zero results, while "sechsunddreißig" came through every time.
+    // The card then ran into the deadline and was graded WRONG although the
+    // child had answered correctly. Continuously the same word arrives with
+    // confidence 1.00.
+    //
+    // The price is that 'speechend' now fires once for the whole pass instead
+    // of once per utterance — the time measurement therefore hangs on the
+    // first sign of recognition, see stt.spokeEndAt.
+    rec.continuous = true;
     // The on-device recogniser streams its result as growing prefixes and
     // ignores a false here — observed as "4" seconds before "45". Asking for
     // interim results makes that visible instead of pretending it does not
@@ -1385,9 +1397,22 @@
     // current one.
     var pass = {
       segments: [],     // latest snapshot of the recognition result
-      sawSpeech: false, // was there speech at all in this pass?
-      handled: false    // has this pass already graded or reported?
+      consumed: 0,      // segments of utterances already reported on
+      sawSpeech: false, // was there speech since the last report?
+      handled: false    // has this pass already graded?
     };
+
+    // The end of speaking of the utterance being graded — the earliest signal
+    // wins and later ones leave it alone. retryUnderstood() puts it back to 0,
+    // which is what makes the next utterance the first again.
+    function markSpokeEnd() {
+      if (stt.spokeEndAt !== 0) return;
+      // The level detector knows the real end of speaking; the result can be
+      // seconds behind it. Only if it has nothing — no permission, or the
+      // result overtook the end of speaking — does the current moment count,
+      // which is what the measurement always fell back to.
+      stt.spokeEndAt = stt.voiceEndAt || Date.now();
+    }
 
     // The single route from a recognition result into the grading — the result
     // event and the end of the pass both take it, so the two cannot drift
@@ -1396,7 +1421,11 @@
       var out = ML.chooseSpokenAnswer(pass.segments, {
         expected: session.expected,
         lang: lang(),
-        assumeFinal: assumeFinal
+        assumeFinal: assumeFinal,
+        // Continuously the segments of an utterance already reported on stay
+        // in front of the new one. Without this the answer to the PREVIOUS
+        // question would be graded against the current one.
+        from: pass.consumed
       });
       if (out.status === 'pending') {
         // The child is still speaking. Show what stands there so far — that is
@@ -1405,10 +1434,15 @@
         if (out.heard !== '') micSetEcho(out.heard);
         return out.status;
       }
-      pass.handled = true;
       mic.speaking = false;
       mic.processing = false;
       if (out.status === 'none') {
+        // The pass is NOT over: the recogniser keeps running and the child
+        // gets to answer again into the same one. Only these segments are
+        // used up — and with them the speech that produced them, otherwise
+        // the end of the pass would report the same loss a second time.
+        pass.consumed = pass.segments.length;
+        pass.sawSpeech = false;
         // The recogniser heard something, just no number in it. Exactly that
         // has to become visible — otherwise the child is left guessing what
         // went wrong.
@@ -1419,6 +1453,9 @@
         retryUnderstood(t('mic.notUnderstood'));
         return out.status;
       }
+      // Only a graded value ends the pass — nextQuestion() builds the next
+      // recogniser and this one is aborted with it.
+      pass.handled = true;
       // What is shown is the wording the graded value came from — even when it
       // is wrong. The message has to stand before submitAnswer: otherwise the
       // next question follows in the same tick and overwrites it.
@@ -1486,8 +1523,10 @@
     rec.addEventListener('speechend', function () {
       // Timestamp BEFORE the recognition — the recognition latency does not
       // count. This line stays the first in the handler and must have nothing
-      // in front of it.
-      stt.spokeEndAt = Date.now();
+      // in front of it. Continuously this event comes once for the whole pass,
+      // long after the utterance; it therefore only counts when no result has
+      // timestamped the utterance yet.
+      markSpokeEnd();
       sttLog(runId, forCard, 'speechend');
       // 'speechend' is followed by 'result' or 'error'; if both fail to come,
       // the recognition hangs.
@@ -1499,19 +1538,22 @@
     });
 
     rec.addEventListener('result', function (event) {
+      // First line, before anything else: this is the timestamp that gets
+      // graded. Everything after it is bookkeeping.
+      markSpokeEnd();
       // The whole result is kept, not just results[0]: the answer may sit in a
       // later segment, and the end of the pass needs the last state too.
       pass.segments = sttSegments(event.results);
+      // A result is the proof that something was said. Continuously
+      // 'speechstart' fires once per pass, so after a retry it would never
+      // report speech again — and a lost utterance would look like silence.
+      pass.sawSpeech = true;
       sttLog(runId, forCard, 'result: ' + sttResultLog(event.results));
-      // After a FINAL result the end follows right away, so the short deadline
-      // fits. After an interim one it does not: the child is still speaking,
-      // and thinking for three seconds between two interim results would have
-      // the watchdog shoot down the running utterance. Observed exactly that
-      // way — "watchdog: no end after result" in the middle of an answer.
-      var finished = pass.segments.length > 0
-        && pass.segments[pass.segments.length - 1].final;
-      sttHeartbeat(rec, finished ? STT_START_TIMEOUT_MS : STT_ALIVE_TIMEOUT_MS,
-                   finished ? 'no end after result' : 'no end after interim result');
+      // The long deadline, always: continuously NO end follows a final result
+      // either — the recogniser keeps listening for the next utterance. With
+      // the short one the watchdog would shoot the pass down three seconds
+      // after every answer.
+      sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no sign of life after result');
       // Results of a pass belonging to a different question must not grade
       // this question.
       if (forCard !== session.currentKey) {
@@ -1625,7 +1667,83 @@
     // the running pass would be graded as 0 ms — measured against a clock that
     // no longer exists.
     stt.spokeEndAt = 0;
+    stt.voiceEndAt = 0;
     rearmDeadline();
+  }
+
+  /* ---------- end of speaking from the microphone level ----------
+     The recogniser cannot supply it: continuously 'speechend' comes once for
+     the whole pass, and the result is 1.5 to 6 seconds late — measured. The
+     level is therefore watched separately. The decision itself is
+     ML.voiceStep in logic.js; what is left here is the audio graph.
+
+     This grades nothing. It only supplies the timestamp the answer time is
+     measured against, and it may fail without consequence: without it the
+     measurement falls back to the moment of the result, which is what it
+     always did. */
+  var VOICE_TICK_MS = 50;
+  var voice = { stream: null, ctx: null, analyser: null, buf: null,
+                timer: null, state: ML.newVoiceState() };
+
+  function voiceTick() {
+    voice.analyser.getFloatTimeDomainData(voice.buf);
+    var sum = 0;
+    for (var i = 0; i < voice.buf.length; i++) sum += voice.buf[i] * voice.buf[i];
+    var out = ML.voiceStep(voice.state, Math.sqrt(sum / voice.buf.length), Date.now());
+    voice.state = out.state;
+    if (out.event === null) return;
+    if (out.event === 'start') {
+      mic.speaking = true;
+      mic.processing = false;
+      micUpdate();
+      return;
+    }
+    // The end of speaking of the utterance just spoken. Only noted — which
+    // utterance gets graded with it is decided by markSpokeEnd() when a
+    // result arrives.
+    stt.voiceEndAt = out.at;
+    mic.speaking = false;
+    mic.processing = true;
+    micUpdate();
+  }
+
+  function voiceStart() {
+    if (voice.stream || !navigator.mediaDevices
+        || !navigator.mediaDevices.getUserMedia) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (!stt.active) {   // switched off again while the permission was pending
+        stream.getTracks().forEach(function (track) { track.stop(); });
+        return;
+      }
+      voice.stream = stream;
+      voice.ctx = new AC();
+      voice.analyser = voice.ctx.createAnalyser();
+      voice.analyser.fftSize = 1024;
+      voice.ctx.createMediaStreamSource(stream).connect(voice.analyser);
+      voice.buf = new Float32Array(voice.analyser.fftSize);
+      voice.state = ML.newVoiceState();
+      voice.timer = setInterval(voiceTick, VOICE_TICK_MS);
+    }).catch(function (e) {
+      // No level detector — the time measurement falls back to the moment of
+      // the result. Worth a line, never a reason to stop listening.
+      sttLog(stt.runId, session.currentKey,
+             'level detector unavailable: ' + (e && e.name ? e.name : e));
+    });
+  }
+
+  function voiceStop() {
+    if (voice.timer !== null) { clearInterval(voice.timer); voice.timer = null; }
+    if (voice.ctx) { try { voice.ctx.close(); } catch (e) { /* already closed */ } }
+    if (voice.stream) {
+      voice.stream.getTracks().forEach(function (track) { track.stop(); });
+    }
+    voice.stream = null;
+    voice.ctx = null;
+    voice.analyser = null;
+    voice.buf = null;
+    voice.state = ML.newVoiceState();
   }
 
   function startListening() {
@@ -1635,6 +1753,7 @@
     if (!shouldListen()) { micUpdate(); return; }
     stopListening();                       // end a pass that is still running
     stt.spokeEndAt = 0;
+    stt.voiceEndAt = 0;
     stt.runId++;
     stt.started = false;
     mic.speaking = false;
@@ -1676,6 +1795,10 @@
     // new permission gesture in every session, so a restored "on" would be a
     // lie. The field stays at its default value in the schema.
     renderSttButton();
+    // The level detector belongs to the mode, not to the pass: its stream
+    // outlives the recogniser, which is rebuilt for every question.
+    if (on) voiceStart();
+    else voiceStop();
     // startListening() builds the recogniser itself — a fresh one per pass.
     if (on) startListening();
     else stopListening();
