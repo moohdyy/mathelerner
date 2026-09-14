@@ -1,0 +1,219 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>STT-Diagnose kurze Zahlwoerter</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 1.5rem; max-width: 60rem; }
+  fieldset { margin-bottom: 1rem; }
+  label { margin-right: 1.2rem; }
+  button { font-size: 1rem; padding: .4rem .9rem; margin-right: .5rem; }
+  #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 13px;
+         background: #111; color: #eee; padding: .8rem; border-radius: 6px;
+         height: 26rem; overflow: auto; }
+  .hint { color: #555; }
+  #state { font-weight: bold; }
+</style>
+
+<h1>STT-Diagnose: kurze Zahlwörter</h1>
+<p class="hint">Pro Konfiguration <b>drei Mal „sechs“</b> sagen (kurze Pausen dazwischen),
+danach einmal <b>„sechsunddreißig“</b> als Gegenprobe. Dann Konfiguration wechseln.</p>
+
+<fieldset>
+  <legend>Konfiguration</legend>
+  <label><input type="checkbox" id="continuous"> continuous</label>
+  <label><input type="checkbox" id="interim" checked> interimResults</label>
+  <label><input type="checkbox" id="local"> processLocally (on-device)</label>
+  <label>lang <input id="lang" value="de-DE" size="6"></label>
+  <label>maxAlternatives <input id="alts" value="5" size="2"></label>
+  <label><input type="checkbox" id="vad" checked> eigener Pegel-Detektor (VAD)</label>
+</fieldset>
+
+<p>
+  <button id="start">Start</button>
+  <button id="stop">Stop</button>
+  <button id="clear">Log leeren</button>
+  <button id="copy">Log kopieren</button>
+  <span id="state">bereit</span>
+</p>
+
+<div id="log"></div>
+
+<script>
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var logEl = document.getElementById('log');
+var stateEl = document.getElementById('state');
+var rec = null, t0 = 0, runId = 0, autoRestart = false;
+
+function log(text) {
+  var ms = t0 ? (Date.now() - t0) : 0;
+  logEl.textContent += ('     ' + ms).slice(-6) + ' ms  ' + text + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+if (!SR) { log('SpeechRecognition NICHT verfuegbar'); }
+log('secureContext=' + window.isSecureContext + ' protocol=' + location.protocol);
+log('SR.available=' + (typeof SR === 'function' && typeof SR.available === 'function')
+    + ' SR.install=' + (typeof SR === 'function' && typeof SR.install === 'function'));
+
+function probeAvailable() {
+  var tag = document.getElementById('lang').value;
+  if (!SR || typeof SR.available !== 'function') { log('available(): API fehlt'); return; }
+  try {
+    Promise.resolve(SR.available({ langs: [tag], processLocally: true }))
+      .then(function (s) { log('available(' + tag + ', local) = ' + s); })
+      .catch(function (e) { log('available() warf: ' + e); });
+    Promise.resolve(SR.available({ langs: [tag], processLocally: false }))
+      .then(function (s) { log('available(' + tag + ', server) = ' + s); })
+      .catch(function (e) { log('available() warf: ' + e); });
+  } catch (e) { log('available() warf synchron: ' + e); }
+}
+probeAvailable();
+
+function dump(results) {
+  var parts = [];
+  for (var i = 0; i < results.length; i++) {
+    var alts = [];
+    for (var a = 0; a < results[i].length; a++) {
+      var c = typeof results[i][a].confidence === 'number'
+        ? results[i][a].confidence.toFixed(2) : '?';
+      alts.push('"' + results[i][a].transcript + '"<' + c + '>');
+    }
+    parts.push('[' + i + (results[i].isFinal ? ' final' : ' interim') + '] ' + alts.join(' | '));
+  }
+  return parts.length ? parts.join(' || ') : '(kein Segment)';
+}
+
+function build() {
+  var r = new SR();
+  var id = ++runId;
+  r.lang = document.getElementById('lang').value;
+  r.continuous = document.getElementById('continuous').checked;
+  r.interimResults = document.getElementById('interim').checked;
+  r.maxAlternatives = parseInt(document.getElementById('alts').value, 10) || 1;
+  if (document.getElementById('local').checked) {
+    try { r.processLocally = true; } catch (e) { log('processLocally nicht setzbar: ' + e); }
+  }
+  log('--- #' + id + ' build: continuous=' + r.continuous + ' interim=' + r.interimResults
+      + ' local=' + (r.processLocally === true) + ' lang=' + r.lang
+      + ' maxAlt=' + r.maxAlternatives);
+
+  var speechStartAt = 0;
+  ['start', 'audiostart', 'soundstart', 'speechstart'].forEach(function (name) {
+    r.addEventListener(name, function () {
+      if (name === 'speechstart' || (name === 'soundstart' && !speechStartAt)) {
+        speechStartAt = Date.now();
+      }
+      log('#' + id + ' ' + name);
+    });
+  });
+  ['speechend', 'soundend', 'audioend'].forEach(function (name) {
+    r.addEventListener(name, function () {
+      var d = speechStartAt ? ' (Sprechdauer ' + (Date.now() - speechStartAt) + ' ms)' : '';
+      if (name === 'speechend') speechStartAt = 0;
+      log('#' + id + ' ' + name + d);
+    });
+  });
+  r.addEventListener('result', function (e) {
+    log('#' + id + ' RESULT resultIndex=' + e.resultIndex + '  ' + dump(e.results));
+  });
+  r.addEventListener('nomatch', function () { log('#' + id + ' nomatch'); });
+  r.addEventListener('error', function (e) { log('#' + id + ' ERROR ' + e.error
+      + (e.message ? ' — ' + e.message : '')); });
+  r.addEventListener('end', function () {
+    log('#' + id + ' end');
+    if (autoRestart && r === rec) { setTimeout(startRun, 150); }
+  });
+  return r;
+}
+
+function startRun() {
+  if (!SR) return;
+  if (rec) { try { rec.abort(); } catch (e) {} }
+  rec = build();
+  try { rec.start(); stateEl.textContent = 'laeuft'; }
+  catch (e) { log('start() warf: ' + e); }
+}
+
+/* ---------- eigener Sprechende-Detektor, parallel zur Erkennung ----------
+   Misst, wann wirklich gesprochen wurde. Die Differenz zum ersten RESULT im
+   Log IST die Erkennungslatenz — die Zahl, die entscheidet, ob die Zeit am
+   Erkennungsergebnis haengen darf. */
+var vad = { ctx: null, stream: null, timer: null, speaking: false,
+            startAt: 0, quietSince: 0, peak: 0 };
+var VAD_ON = 0.020;      // RMS, ab hier gilt es als Sprache
+var VAD_OFF = 0.010;     // Hysterese: darunter beginnt die Stille
+var VAD_HANG_MS = 400;   // so lange Stille, dann ist die Aeusserung zu Ende
+
+function vadStart() {
+  if (!document.getElementById('vad').checked) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    log('VAD: getUserMedia fehlt'); return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: {
+    echoCancellation: true, noiseSuppression: true, autoGainControl: true
+  } }).then(function (stream) {
+    vad.stream = stream;
+    vad.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var src = vad.ctx.createMediaStreamSource(stream);
+    var an = vad.ctx.createAnalyser();
+    an.fftSize = 1024;
+    src.connect(an);
+    var buf = new Float32Array(an.fftSize);
+    log('VAD laeuft (zweiter Mikrofonstrom neben der Erkennung)');
+    vad.timer = setInterval(function () {
+      an.getFloatTimeDomainData(buf);
+      var sum = 0;
+      for (var i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      var rms = Math.sqrt(sum / buf.length);
+      var now = Date.now();
+      if (!vad.speaking) {
+        if (rms >= VAD_ON) {
+          vad.speaking = true; vad.startAt = now; vad.quietSince = 0; vad.peak = rms;
+          log('VAD speechstart');
+        }
+      } else {
+        if (rms > vad.peak) vad.peak = rms;
+        if (rms < VAD_OFF) {
+          if (vad.quietSince === 0) vad.quietSince = now;
+          else if (now - vad.quietSince >= VAD_HANG_MS) {
+            vad.speaking = false;
+            log('VAD SPEECHEND (Dauer ' + (vad.quietSince - vad.startAt)
+                + ' ms, Pegel ' + vad.peak.toFixed(3) + ')');
+            vad.quietSince = 0;
+          }
+        } else { vad.quietSince = 0; }
+      }
+    }, 50);
+  }).catch(function (e) { log('VAD: getUserMedia warf ' + e); });
+}
+
+function vadStop() {
+  if (vad.timer) { clearInterval(vad.timer); vad.timer = null; }
+  if (vad.ctx) { try { vad.ctx.close(); } catch (e) {} vad.ctx = null; }
+  if (vad.stream) {
+    vad.stream.getTracks().forEach(function (tr) { tr.stop(); });
+    vad.stream = null;
+  }
+  vad.speaking = false;
+}
+
+document.getElementById('start').onclick = function () {
+  t0 = Date.now();
+  autoRestart = true;
+  probeAvailable();
+  vadStop();
+  vadStart();
+  startRun();
+};
+document.getElementById('stop').onclick = function () {
+  autoRestart = false;
+  vadStop();
+  stateEl.textContent = 'gestoppt';
+  if (rec) { try { rec.abort(); } catch (e) {} }
+};
+document.getElementById('clear').onclick = function () { logEl.textContent = ''; };
+document.getElementById('copy').onclick = function () {
+  navigator.clipboard.writeText(logEl.textContent).then(function () {
+    stateEl.textContent = 'Log kopiert';
+  });
+};
+</script>

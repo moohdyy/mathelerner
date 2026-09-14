@@ -13,7 +13,7 @@
      place it is written down; the menu reads it from here. Every commit that
      touches index.html or logic.js raises it exactly once — patch for fixes,
      minor for new behaviour. See CLAUDE.md. */
-  var VERSION = '1.0.2';
+  var VERSION = '1.0.3';
 
   /* ===================================================================
      Section 0 — languages

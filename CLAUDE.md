@@ -9,14 +9,20 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test                          # gesamte Suite (aktuell 198 Tests)
+node --test test/*.test.js           # gesamte Suite (aktuell 198 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
+node test/browser/run.js             # die Browser-Prüfungen für index.html
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
 ```
 
-**`node --test test/` funktioniert nicht.** Node 22 deutet das Verzeichnis als
-Modulpfad und bricht mit `MODULE_NOT_FOUND` ab. Der nackte Aufruf findet
-`test/*.test.js` von selbst. Einzelne Dateien nur mit vollem Pfad.
+**Der nackte Aufruf `node --test` funktioniert nicht mehr.** Sein Suchmuster
+enthält `**/test/**/*.js`, und seit der Browser-Harness unter `test/browser/`
+liegt, führt er `run.js`, `mocks.js` und `scenario.js` als Testdateien aus —
+drei Fehlschläge, die nichts mit dem Code zu tun haben. Deshalb das ausdrück-
+liche Muster `test/*.test.js`; die Shell löst es auf, Node bekommt eine
+Dateiliste. `node --test test/` funktioniert ebenfalls nicht: Node 22 deutet
+das Verzeichnis als Modulpfad und bricht mit `MODULE_NOT_FOUND` ab. Einzelne
+Dateien nur mit vollem Pfad.
 
 Es gibt keine `package.json`, keinen Build-Schritt, keinen Linter und keine
 Abhängigkeit — auch keine Entwicklungsabhängigkeit. Der Testrunner ist der in
@@ -158,9 +164,33 @@ sind mehrfach falsch umgesetzt worden:
   vorher im `end`-Handler saß und die der Dauermodus ersatzlos entfernt hätte.
   Bewaffnet wird sie von **beiden** Sprechende-Signalen, `speechend` und dem
   Pegel-Detektor: ein Durchgang, der nie ein `speechend` sieht, bliebe sonst
-  ewig offen. Die Nachfrist muss deutlich über der Erkennungslatenz (gemessen
-  1,5–6,2 s ... 2,5 s decken den häufigen Fall) und deutlich unter der
-  Gesamtfrist liegen; wer sie verkürzt, wertet Präfixe.
+  ewig offen.
+- **Die Nachfrist zählt ab dem letzten Ergebnis, nicht ab dem Sprechende.**
+  Jedes `result` bewaffnet sie neu. Zählt sie ab dem Sprechende, schlägt sie
+  mitten in den Normalfall: die Erkennungslatenz wurde im selben Lauf mit
+  1454 ms und 6170 ms gemessen, eine Frist von 2,5 s liegt mittendrin. Im
+  Praxislauf hieß das bei **jeder** Antwort zuerst ein falsches „Nicht
+  verstanden“ mit Uhr-Neustart und Sekunden später die richtige Wertung.
+  Schlimmer noch wertet sie dann den Stand, der gerade dasteht: der Erkenner
+  revidiert seine Hypothese, im Log als `3 → 35 → 3` zu sehen, und „3“ gegen
+  eine erwartete 35 wirft eine richtige Antwort auf Box 0. Ab dem letzten
+  Ergebnis gezählt heißt der Ablauf, was er heißen soll: es kommt nichts mehr.
+  Die Frist muss dabei über der gemessenen Latenz liegen — sie deckt auch den
+  Durchgang ab, in dem **nie** ein Ergebnis kommt — und deutlich unter der
+  Gesamtfrist bleiben.
+- **Der Pegel-Detektor ist der einzige Zeuge einer verschluckten Äußerung.**
+  Chrome verliert kurze Antworten vollständig: kein `result`, kein `nomatch`,
+  kein `error` — „sechs“ kam in einem von neun Versuchen an. Hinge
+  `pass.sawSpeech` allein am Erkenner, meldete genau dieser Durchgang nichts,
+  das Kind stünde vor „Einen Moment …“ und die Gesamtfrist wertete die Karte
+  **falsch**, obwohl es richtig geantwortet hat. Deshalb setzt auch
+  `stt.onVoiceStart` aus dem Pegel-Detektor das Flag. Erkennen lässt sich die
+  Äußerung damit nicht — aber die Karte bleibt heil und das Kind wird gefragt.
+- **Die Sprache des Erkenners gehört ins Log.** `start requested (de-DE)`.
+  Ohne sie ist ein Erkenner, der in der falschen Sprache zuhört, unsichtbar:
+  im Log steht dann „Familiarizes“ für „fünfunddreißig“ und nichts sagt,
+  warum. `processLocally` steht daneben, weil die On-Device-Erkennung sich
+  anders verhält — andere Latenz, anderes `isFinal`.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.
@@ -322,13 +352,21 @@ sind mehrfach falsch umgesetzt worden:
 und DOM-Schicht brauchen einen echten Browser, und das ist eine bewusste
 Entscheidung, kein Versäumnis.
 
-UI-Änderungen wurden bisher über das Chrome DevTools Protocol geprüft:
-headless Chrome mit `--remote-debugging-port`, gesteuert aus Node über den
-eingebauten `WebSocket` (ab Node 21 global, also ohne Abhängigkeit). Sprach­aus-
-und -eingabe lassen sich dabei durch Attrappen ersetzen, sodass auch
-Fehlerpfade und Zeitverhalten messbar sind. Berichte über UI-Verhalten sind
-ohne solche Messung nicht belastbar — mehrfach sahen Fixes im Code korrekt aus
-und wirkten trotzdem nicht.
+Dafür liegt der Harness im Repo: **`node test/browser/run.js`**. Er startet
+headless Chrome mit `--remote-debugging-port` und steuert es aus Node über den
+eingebauten `WebSocket` (ab Node 21 global, also ohne Abhängigkeit) — die
+Vorgabe „keine Abhängigkeiten“ gilt auch für ihn. `mocks.js` stellt Erkenner,
+Pegel-Detektor und Vorlesen nach, `scenario.js` fährt die Prüfungen gegen
+`window.__app`. Berichte über UI-Verhalten sind ohne solche Messung nicht
+belastbar — mehrfach sahen Fixes im Code korrekt aus und wirkten trotzdem
+nicht.
+
+`test/stt-diag/` ist das Gegenstück für den **echten** Erkenner mit echtem
+Mikrofon (`python3 -m http.server` aus dem Ordner heraus). Es schaltet
+`continuous`, `interimResults`, `processLocally` und die Sprache einzeln um
+und misst die Erkennungslatenz als Abstand zwischen eigenem Sprechende-Signal
+und dem nächsten Ergebnis. Fragen wie „warum kommt kein Ergebnis“ beantwortet
+nur diese Seite — der Harness prüft die eigene Logik, nicht den Erkenner.
 
 Eine brauchbare Attrappe für `SpeechRecognition` muss mehr können als ein
 fertiges Ergebnis liefern. Die Fälle, in denen die Wertung tatsächlich

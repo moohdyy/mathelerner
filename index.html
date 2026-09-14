@@ -1103,10 +1103,20 @@
   // as an interim result while the clock runs on towards the deadline, and
   // the deadline grades the card WRONG: measured with "[0 interim] 12" on
   // 3x4 and "One" on 1x1, both correct, both lost.
-  // Long enough for a genuinely final result to still arrive (the recognition
-  // latency was measured at 1.5 to 6.2 s), short enough to stay far below the
-  // overall deadline of 3 x threshold.
-  var STT_SETTLE_MS = 2500;
+  // The deadline counts from the last sign of life of the RECOGNITION, not
+  // from the end of speaking — every result rearms it. That distinction is
+  // the whole point: the recognition latency was measured at 1454 ms and
+  // 6170 ms in the same run, so a deadline counted from the end of speaking
+  // strikes in the middle of the normal case. It did: every answer first
+  // produced a false "not understood" and the correct grading seconds later.
+  // Worse, it finalised whatever prefix happened to stand there — the log
+  // shows the recogniser going 3 → 35 → 3, and "3" was graded against an
+  // expected 35, which throws a correct answer onto box 0.
+  // Counted from the last result the span only has to outlast the gap
+  // BETWEEN results, but it is also what covers a swallowed utterance, where
+  // no result ever comes; it therefore has to sit above the measured latency.
+  // Still far below the overall deadline of 3 x threshold.
+  var STT_SETTLE_MS = 7000;
 
   var stt = {
     supported: !!SR,
@@ -1116,6 +1126,7 @@
     spokeEndAt: 0,
     voiceEndAt: 0,      // end of speaking from the level detector, 0 = none yet
     onVoiceEnd: null,   // the running pass concludes its utterance from here
+    onVoiceStart: null, // ... and learns from here that speech happened at all
     permissionDenied: false,
     consecutiveErrors: 0,
     // Bookkeeping about the running listening pass.
@@ -1461,6 +1472,13 @@
     // concluded. buildRecognizer of the next question overwrites this; the
     // identity guard in settleUtterance keeps a stale one harmless.
     stt.onVoiceEnd = armSettle;
+    // And it is the only witness of an utterance the recogniser swallows
+    // whole: "sechs" arrived in one of nine attempts, the other eight brought
+    // no result, no nomatch and no error. Hanging pass.sawSpeech on the
+    // recogniser alone meant that exactly those passes reported nothing, the
+    // child stared at "one moment", and the deadline then graded the card
+    // WRONG for an answer it had given correctly.
+    stt.onVoiceStart = function () { pass.sawSpeech = true; };
 
     // The end of speaking of the utterance being graded — the earliest signal
     // wins and later ones leave it alone. retryUnderstood() puts it back to 0,
@@ -1616,6 +1634,11 @@
       // the short one the watchdog would shoot the pass down three seconds
       // after every answer.
       sttHeartbeat(rec, STT_ALIVE_TIMEOUT_MS, 'no sign of life after result');
+      // A result is a sign of life of the RECOGNITION, and the settle deadline
+      // counts from it. Without this rearming the deadline fires while the
+      // recogniser is still revising its hypothesis and finalises a prefix —
+      // "3" graded against an expected 35.
+      armSettle();
       // Results of a pass belonging to a different question must not grade
       // this question.
       if (forCard !== session.currentKey) {
@@ -1751,6 +1774,9 @@
       mic.speaking = true;
       mic.processing = false;
       micUpdate();
+      // The running pass has to know that speech happened even when the
+      // recogniser never reports a word of it.
+      if (typeof stt.onVoiceStart === 'function') stt.onVoiceStart();
       return;
     }
     // The end of speaking of the utterance just spoken. Only noted — which
@@ -1819,7 +1845,13 @@
     var runId = stt.runId;
     var card = session.currentKey;
     stt.recognizer = buildRecognizer(card, runId);
-    sttLog(runId, card, 'start requested');
+    // The speech tag belongs in the log. Without it a recogniser listening in
+    // the wrong language is invisible: the child speaks German, the log shows
+    // "Familiarizes" for "fünfunddreißig", and nothing says why. processLocally
+    // rides along because the on-device engine behaves differently — other
+    // latency, other isFinal.
+    sttLog(runId, card, 'start requested (' + stt.recognizer.lang
+      + (stt.recognizer.processLocally ? ', on-device' : '') + ')');
     try {
       stt.recognizer.start();
     } catch (e) {
@@ -2312,7 +2344,8 @@
                    onDeadlineExpired: onDeadlineExpired,
                    currentThresholdMs: currentThresholdMs, clockRunning: clockRunning,
                    thresholdMs: thresholdMs, sttThresholdMs: sttThresholdMs,
-                   showFlash: showFlash, retryUnderstood: retryUnderstood };
+                   showFlash: showFlash, retryUnderstood: retryUnderstood,
+                   STT_SETTLE_MS: STT_SETTLE_MS };
 })();
 </script>
 </body>
