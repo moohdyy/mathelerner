@@ -216,6 +216,30 @@ sind mehrfach falsch umgesetzt worden:
   `ja-JP`/`pt-BR` → `downloadable`, ein erfundenes `xx-XX` → `unavailable`.
   Ein falsch-positives `available` gibt es also nicht — wer die falsche
   Erkennungssprache erklären will, muss sie woanders suchen.
+- **Der Fristablauf fragt erst das Mikrofon, bevor er eine Karte abwertet.**
+  `onDeadlineExpired` ruft `stt.settleForDeadline()`. Der Grund ist gemessen:
+  die richtige Antwort steht oft als *nicht finales* Segment da, während die
+  Frist abläuft — „20“ auf 10×2, „Two“ auf 2×2, beide richtig, beide verloren.
+  Die Nachfrist rettet das nicht, denn sie wird erst vom Sprechende bewaffnet
+  und die Gesamtfrist ist vorher dran. Wer den Aufruf entfernt, holt den
+  Fehler zurück, bei dem eine laut gesagte richtige Antwort die Karte auf Box
+  0 wirft.
+- **Nach einem Erkennungsfehler wertet die Frist die Karte gar nicht mehr.**
+  `session.recognitionLost` wird von `retryUnderstood` gesetzt und von
+  `nextQuestion` zurückgenommen. Läuft die Frist danach ab, wird die Aufgabe
+  **ungewertet verworfen** und eine neue gezogen. Beides ist nötig: ohne das
+  Verwerfen hinge ein Kind mit totem Mikrofon ewig vor derselben Aufgabe, ohne
+  die Regel zerstörte dasselbe Mikrofon in Minuten wochenlangen Fortschritt.
+  Die Regel „ein Erkennungsfehler darf niemals eine Karte werten“ galt vorher
+  nur für den Moment des Fehlers; die Frist danach hat sie ausgehebelt.
+- **Der Fristablauf gehört ins Log.** Er ist der einzige Moment, in dem eine
+  Karte eine Box verliert, ohne dass jemand etwas Falsches gesagt hat. Ohne
+  die Zeile stehen dort nur ein `aborted` und ein `end`, und der Verlust ist
+  unsichtbar — genau daran ist die Ursachensuche zweimal vorbeigelaufen.
+- **Eine gemeldete Äußerung ist verbraucht** (`pass.sawSpeech = false` nach
+  dem „asking again“). Sonst entschuldigte dasselbe einmalige Sprechen die
+  Karte bei jeder weiteren Frist, und eine Aufgabe, die niemand mehr
+  beantwortet, bliebe für immer offen.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.

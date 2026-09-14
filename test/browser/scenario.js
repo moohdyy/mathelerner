@@ -226,6 +226,51 @@ check('a swallowed utterance leaves the box alone',
       window.__app.profile().cards[key9].box === 3,
       'box=' + window.__app.profile().cards[key9].box);
 
+/* ---- 9b. and the deadline must not finish the job the recogniser botched ----
+   Reporting the swallowed utterance is only half the rescue. Afterwards the
+   clock runs again, and if the recogniser stays silent — which is exactly what
+   it does when it loses a short word like "zwei" — the deadline expires and
+   grades the card WRONG, for an answer the child gave out loud. The level
+   detector is the witness that it spoke; that witness has to outweigh the
+   deadline. Measured in practice: 1x10, 2x2 and 1x2 kept coming back because
+   every swallowed answer threw them onto box 0. */
+const deadline9 = 3 * window.__app.currentThresholdMs() + 2000;
+const beforeDeadline9 = lines.length;
+await sleep(deadline9);
+check('the deadline does not grade a card the recogniser swallowed',
+      window.__app.profile().cards[key9].box === 3,
+      'box=' + window.__app.profile().cards[key9].box + ' after '
+      + deadline9 + ' ms; ' + (lines.slice(beforeDeadline9).join(' / ') || '(nothing logged)'));
+// And the child does not sit in front of a question that can never end: the
+// lost one is dropped ungraded and a new one is drawn.
+check('a question lost to recognition is replaced instead of left standing',
+      window.__app.session.currentKey !== null,
+      'currentKey=' + window.__app.session.currentKey + ' (was ' + key9 + ')');
+
+/* ---- 9c. the answer is standing there unfinished when the deadline expires ----
+   The recogniser marks its segments final only when it feels like it. Measured
+   against the real one: „20“ on 10x2 and „Two“ on 2x2 stood in the segments as
+   interim while the deadline expired, aborted the pass and graded the card
+   WRONG — for answers the child had said out loud and correctly. No settle
+   deadline saves this: it is only armed by the end of speaking, and the overall
+   deadline gets there first. */
+await armQuestion();
+await sleep(400);
+const key9c = window.__app.session.currentKey;
+window.__app.profile().cards[key9c].box = 2;
+const expected9c = window.__app.session.expected;
+const before9c = lines.length;
+window.__probe.rec._say([String(expected9c)], false);   // interim, never final
+await sleep(3 * window.__app.currentThresholdMs() + 2000);
+const graded9c = lines.slice(before9c).filter(l => l.includes('graded:')).pop() || '';
+check('an answer left unfinished is graded by the deadline instead of thrown away',
+      graded9c.includes('graded: ' + expected9c + ' '),
+      graded9c || lines.slice(before9c).join(' / ') || '(nothing logged)');
+// The answer was right, so the box may rise — it must only never fall.
+check('and that card does not fall to box 0',
+      window.__app.profile().cards[key9c].box >= 2,
+      'box=' + window.__app.profile().cards[key9c].box);
+
 /* ---- 10. the language change reaches the recogniser ----
    rec.lang is set when the recogniser is built and never changes on a running
    one. A child that speaks German into an English recogniser gets

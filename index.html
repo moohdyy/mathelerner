@@ -532,7 +532,10 @@
     ackTimeUp: false,      // the standing acknowledgement came from the deadline
     freeplay: false,
     fromFreePlay: false,   // the current card comes from free practice
-    sessionCounted: false  // only the first answer makes this a session
+    sessionCounted: false, // only the first answer makes this a session
+    // Has the recogniser already lost an answer on THIS question? Then the
+    // deadline must not grade the card wrong afterwards — see onDeadlineExpired.
+    recognitionLost: false
   };
 
   // Two-step confirmation for deleting a profile.
@@ -736,7 +739,36 @@
       timer.deadline = setTimeout(onDeadlineExpired, total - elapsed);
       return;
     }
+    // The microphone gets the last word before the card loses a box. Until it
+    // did, the deadline aborted the pass and graded WRONG while the correct
+    // answer stood in the segments unfinished — measured as "20" on 10x2 and
+    // "Two" on 2x2, both lost. If something usable is in there it is graded
+    // here; if the child demonstrably spoke and the recogniser lost it, the
+    // clock has been restarted and the card stays untouched.
+    if (stt.active && typeof stt.settleForDeadline === 'function'
+        && stt.settleForDeadline()) {
+      return;
+    }
     timer.fired = true;
+    // The recogniser has already lost an answer on this question. Whatever the
+    // clock says now, the card must not pay for it: a child with a bad
+    // microphone would otherwise lose weeks of progress in minutes, which is
+    // the one thing this app may never do. The question is dropped UNGRADED
+    // and a new one is drawn — leaving it standing would hang a child whose
+    // microphone never works.
+    if (session.recognitionLost) {
+      sttLog(stt.runId, session.currentKey,
+        'deadline expired after a recognition failure — card untouched, asking again');
+      stopListening();
+      nextQuestion();
+      return;
+    }
+    // The one moment in which a card loses a box without anybody saying
+    // anything wrong. It belongs in the log: without it the console shows
+    // an "aborted" and an "end", and nothing says that the card was graded.
+    sttLog(stt.runId, session.currentKey,
+      'deadline expired after ' + elapsed + ' ms of ' + total
+      + ' ms — graded WRONG');
     // First go silent, then grade: a recognition result arriving afterwards
     // must not touch the already graded card a second time.
     stopListening();
@@ -790,6 +822,8 @@
     session.awaitingAck = false;
     session.ackTimeUp = false;
     session.fromFreePlay = fromFreePlay;
+    // A fresh question has not lost anything yet.
+    session.recognitionLost = false;
 
     el.question.textContent = ab.a + ' × ' + ab.b;
     el.answer.value = '';
@@ -1488,8 +1522,37 @@
         sttLog(runId, forCard, why + ' \u2014 asking again');
         micReport('error', t('mic.lost'));
         retryUnderstood(t('mic.notUnderstood'));
+        // This speech is used up. Without that the same utterance would excuse
+        // the card again at the next deadline, and a child that has stopped
+        // answering would keep the question open for ever.
+        pass.sawSpeech = false;
       }
       return outcome;
+    }
+
+    // The deadline's last look into the pass, and the reason a correct answer
+    // no longer dies with it. Measured against the real recogniser: the answer
+    // stands in the segments unfinished — "20" on 10x2, "Two" on 2x2 — while
+    // the deadline expires, aborts the pass and grades the card WRONG. The
+    // segments are marked final here first; only if nothing usable comes of
+    // them does the deadline get its turn.
+    //
+    // Returns true when the deadline must keep its hands off the card: either
+    // the answer was there after all, or the child demonstrably spoke and the
+    // recogniser lost it — a recognition failure, which must never cost a box.
+    function settleForDeadline() {
+      if (rec !== stt.recognizer) return false;
+      if (pass.handled || forCard !== session.currentKey || session.awaitingAck) {
+        return false;
+      }
+      var spoke = pass.sawSpeech;
+      var outcome = settleUtterance('the deadline expired');
+      if (outcome === 'skipped') return false;
+      // 'pending' without speech means the child said nothing at all — that is
+      // exactly what the deadline is for, so let it through. With speech, the
+      // rescue above has already restarted the clock.
+      if (outcome === 'pending') return spoke;
+      return true;   // graded, or reported as "no number" and asked again
     }
 
     // The level detector reports the end of speaking too, and earlier than the
@@ -1497,6 +1560,9 @@
     // concluded. buildRecognizer of the next question overwrites this; the
     // identity guard in settleUtterance keeps a stale one harmless.
     stt.onVoiceEnd = armSettle;
+    // The way in for the deadline, which lives outside this closure. Overwritten
+    // by the next pass, and guarded by identity like everything else here.
+    stt.settleForDeadline = settleForDeadline;
     // And it is the only witness of an utterance the recogniser swallows
     // whole: "sechs" arrived in one of nine attempts, the other eight brought
     // no result, no nomatch and no error. Hanging pass.sawSpeech on the
@@ -1760,6 +1826,11 @@
   // Recognition errors do NOT grade the card — they only ask the question anew.
   function retryUnderstood(message) {
     el.feedback.textContent = message;
+    // Every route into here is a recognition failure: nothing understood, no
+    // number in it, the pass ended after speech without a result. The question
+    // is marked by it for as long as it stands — a deadline expiring later must
+    // not turn that failure into a wrong answer.
+    session.recognitionLost = true;
     // The clock starts over: otherwise the second attempt would run against
     // the time of the first and could never be fast enough. The visible timer
     // and the deadline have to follow — a child with a bad microphone must not
