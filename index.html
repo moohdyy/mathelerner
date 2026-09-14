@@ -1356,19 +1356,38 @@
 
   function sttThresholdMs() { return thresholdMs() + ML.STT_THRESHOLD_BONUS_MS; }
 
-  // Chrome 139+ can recognise on-device; otherwise fall back to the server
-  // route silently. The recogniser is built per pass: ask once per speech
-  // tag, then apply synchronously.
+  // The on-device route is OFF. It was switched on because it promised lower
+  // latency; measured against a real microphone it delivered the opposite —
+  // 9348 ms for one answer, another pass with no result at all within seven
+  // seconds, short utterances swallowed, and hypotheses in the wrong language
+  // ("Try", "Spy" for "zwei") while rec.lang said de-DE. A recogniser that
+  // listens in another language than the child speaks is the worst failure
+  // this app has: it cannot understand a correct answer.
+  //
+  // The switch stays as a switch rather than as deleted code, because the
+  // question "which route was this pass on" has to stay answerable from the
+  // log. Whoever turns it back on measures again — with a microphone, not by
+  // reading the code.
+  var STT_PREFER_LOCAL = false;
+
   // The answer applies per speech tag, not per session: that German is
-  // available locally says nothing about English.
+  // available locally says nothing about English. Measured, available() is
+  // exact per tag — 'available' for the one installed language, 'downloadable'
+  // for every other, 'unavailable' for a tag that does not exist.
   var localAvailable = {};   // speechLang -> true/false, absent = no answer yet
   var localQueried = {};
 
-  function requestLocalProcessing(rec) {
+  // Called per pass while the recogniser is being built. It only ever reports
+  // and — with the switch above — applies; it must not install anything:
+  // SR.install() requires a user gesture and this runs from a promise
+  // callback. Measured, the call then throws NotAllowedError, which the old
+  // catch swallowed: the German model was never downloaded and nothing in the
+  // log said so.
+  function requestLocalProcessing(rec, runId, card) {
     if (typeof SR.available !== 'function') return;
     var tag = ML.locale(lang()).speechLang;
     if (localAvailable[tag] !== undefined) {
-      if (localAvailable[tag]) rec.processLocally = true;
+      if (localAvailable[tag] && STT_PREFER_LOCAL) rec.processLocally = true;
       return;
     }
     if (localQueried[tag]) return;   // the answer is still pending
@@ -1376,15 +1395,21 @@
     try {
       Promise.resolve(SR.available({ langs: [tag], processLocally: true }))
         .then(function (status) {
-          if (status === 'available') {
-            localAvailable[tag] = true;
-            rec.processLocally = true;
-          } else if (status === 'downloadable' && typeof SR.install === 'function') {
-            SR.install({ langs: [tag], processLocally: true });
-          }
+          localAvailable[tag] = (status === 'available');
+          // The status belongs in the log for the same reason the speech tag
+          // does: it is the only thing that says afterwards which engine a
+          // pass ran on.
+          sttLog(runId, card, 'on-device model for ' + tag + ': ' + status
+            + (STT_PREFER_LOCAL ? '' : ' (route disabled, using the server)'));
         })
-        .catch(function () { /* the server route stays */ });
-    } catch (e) { /* the server route stays */ }
+        .catch(function (e) {
+          localAvailable[tag] = false;
+          sttLog(runId, card, 'available() threw: ' + (e && e.name ? e.name : e));
+        });
+    } catch (e) {
+      localAvailable[tag] = false;
+      sttLog(runId, card, 'available() threw: ' + (e && e.name ? e.name : e));
+    }
   }
 
   // One recogniser per listening pass. The card sits in the closure so that
@@ -1412,7 +1437,7 @@
     // of the grading.
     rec.interimResults = true;
     rec.maxAlternatives = 5;
-    requestLocalProcessing(rec);
+    requestLocalProcessing(rec, runId, forCard);
 
     // What this pass has seen. Per pass, not shared: a late event of a
     // superseded recogniser must not be able to report anything about the

@@ -190,7 +190,32 @@ sind mehrfach falsch umgesetzt worden:
   Ohne sie ist ein Erkenner, der in der falschen Sprache zuhört, unsichtbar:
   im Log steht dann „Familiarizes“ für „fünfunddreißig“ und nichts sagt,
   warum. `processLocally` steht daneben, weil die On-Device-Erkennung sich
-  anders verhält — andere Latenz, anderes `isFinal`.
+  anders verhält — andere Latenz, anderes `isFinal`. Seit 1.0.4 steht auch der
+  Modellstatus dort (`on-device model for de-DE: downloadable`); ohne ihn war
+  nicht zu unterscheiden, ob on-device überhaupt griff.
+- **Die On-Device-Route ist aus (`STT_PREFER_LOCAL = false`), und das war eine
+  Messung, keine Meinung.** Mit ihr an lieferte der Erkenner bei deutschem
+  Profil englische Hypothesen — „Try“, „Try to“, „It's“, „Spy“ für „zwei“,
+  während `rec.lang` nachweislich `de-DE` war. Dazu 9348 ms für eine Antwort,
+  ein Durchgang ganz ohne Ergebnis binnen sieben Sekunden und verschluckte
+  kurze Äußerungen. Ein Erkenner, der in einer anderen Sprache zuhört, als das
+  Kind spricht, ist der schwerste Fehlerfall dieser App: die richtige Antwort
+  kann gar nicht ankommen. Die Serverroute meldet `available` für jeden Tag.
+  Wer die Route wieder anschaltet, misst vorher mit `test/stt-diag/` und einem
+  echten Mikrofon — nicht durch Lesen des Codes.
+- **`SR.install()` verlangt eine Nutzergeste, solange der Status
+  `downloadable` ist.** Gemessen in Chrome 152: aus einem Promise-Callback
+  gerufen wirft es `NotAllowedError` und der Status bleibt `downloadable`; aus
+  einem echten Klick heraus liefert es `true` und der Status wird `available`.
+  Der alte Code rief es genau dort, wo es scheitern musste, und sein `catch`
+  verschluckte den Fehler — das deutsche Modell wurde nie geladen und nichts
+  im Log sagte das. Deshalb installiert `requestLocalProcessing` nichts mehr;
+  sie fragt nur noch ab und berichtet.
+- **`SR.available()` antwortet exakt pro Sprachtag.** Gemessen nach dem
+  Installieren von allein de-DE: `de-DE` → `available`, `en-US`/`fr-FR`/
+  `ja-JP`/`pt-BR` → `downloadable`, ein erfundenes `xx-XX` → `unavailable`.
+  Ein falsch-positives `available` gibt es also nicht — wer die falsche
+  Erkennungssprache erklären will, muss sie woanders suchen.
 - **Freies Weiterüben läuft ohne Boxwirkung.** `session.fromFreePlay`
   entscheidet darüber; wer `gradeAnswer` dort erreichbar macht, zerstört den
   Auffrischungsplan durchs bloße Benutzen.
