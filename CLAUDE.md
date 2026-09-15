@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test test/*.test.js           # gesamte Suite (aktuell 198 Tests)
+node --test test/*.test.js           # gesamte Suite (aktuell 205 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 node test/browser/run.js             # die Browser-Prüfungen für index.html
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
@@ -49,7 +49,7 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 198 Tests.
+testbar, und genau daran hängen die 205 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -148,6 +148,16 @@ sind mehrfach falsch umgesetzt worden:
   übersprungen“ — das verschluckte eine richtige Antwort lautlos.
   „Nichts verstanden“ beendet den Durchgang daher **nicht** mehr; es verbraucht
   nur die Segmente, und das Kind antwortet in denselben Erkenner hinein.
+- **Verbraucht ist nur ein *finales* Segment.** `ML.consumedSegments` rechnet
+  `pass.consumed` bis einschließlich des letzten finalen Segments — nie bis
+  zum Ende der Liste. Ein nicht finales Segment ist nicht erledigt, sondern
+  noch im Fluss: der Erkenner revidiert es weiter. Gemessen auf 1×1: „And“ →
+  „And I“ → „I“ → „1“ → „eins“, alles Segment 0. Die Nachfrist finalisierte
+  „I“ per `assumeFinal`, fand keine Zahl und meldete das — und weil das
+  unfertige Segment dabei als verbraucht galt, schnitt `from` die gleich
+  darauf eintreffende **richtige** Antwort weg. Das Kind bekam „Nicht
+  verstanden“ für eine richtige Antwort. `previous` ist dabei die Untergrenze:
+  was verbraucht war, bleibt verbraucht.
   Aus demselben Grund hängt `sawSpeech` am Ergebnis und nicht an `speechstart`:
   das feuert im Dauermodus nur einmal pro Durchgang.
 - **Nach einem finalen Ergebnis folgt im Dauermodus kein `end`.** Der Watchdog

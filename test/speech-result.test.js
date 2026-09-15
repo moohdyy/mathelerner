@@ -191,3 +191,60 @@ test('assumeFinal applies to the segments from from on', () => {
   assert.strictEqual(out.status, 'value');
   assert.strictEqual(out.value, 45);
 });
+
+/* ---------- what an utterance reported on has used up ---------- */
+
+// Which segments are used up is a decision of its own, and getting it wrong
+// costs the correct answer. Measured against the real recogniser on 1x1:
+// „And“ → „And I“ → „I“ → „1“ → „eins“, all of it in segment 0. The settle
+// deadline finalised „I“ by force, found no number in it and marked the
+// segment used up — so the „eins“ that arrived in that very slot a moment
+// later was cut away by `from`. The child was told "not understood" for an
+// answer it had given correctly. Only a final segment is beyond revision.
+
+test('a final segment is used up', () => {
+  assert.strictEqual(ML.consumedSegments([seg(true, 'keine ahnung')], 0), 1);
+});
+
+test('an interim segment is not used up — the recogniser may still revise it', () => {
+  assert.strictEqual(ML.consumedSegments([seg(false, 'I')], 0), 0);
+});
+
+test('the revision of an interim segment reported on stays gradable', () => {
+  // The exact sequence from the log: reported on „I“ without a number, then
+  // the same slot turns into the correct „eins“.
+  const consumed = ML.consumedSegments([seg(false, 'I')], 0);
+  const out = ML.chooseSpokenAnswer([seg(true, 'eins')],
+                                    { expected: 1, lang: 'de', from: consumed });
+  assert.strictEqual(out.status, 'value');
+  assert.strictEqual(out.value, 1);
+});
+
+test('everything up to the last final segment is used up', () => {
+  // The recogniser finalises in order: an interim segment in front of a final
+  // one will not be revised any more.
+  assert.strictEqual(
+    ML.consumedSegments([seg(true, 'äh'), seg(false, 'ja'), seg(true, 'nein')], 0), 3);
+  assert.strictEqual(
+    ML.consumedSegments([seg(true, 'äh'), seg(true, 'ja'), seg(false, 'fünf')], 0), 2);
+});
+
+test('what was used up never becomes available again', () => {
+  // A recogniser that takes a segment back must not be able to hand the
+  // previous utterance to the current question a second time.
+  assert.strictEqual(ML.consumedSegments([seg(false, 'fünfundvierzig')], 2), 2);
+  assert.strictEqual(ML.consumedSegments([], 3), 3);
+});
+
+test('a broken previous value heals to what is final, not to "everything"', () => {
+  for (const bad of [undefined, null, -3, NaN, 'zwei', {}]) {
+    assert.strictEqual(ML.consumedSegments([seg(true, 'vier'), seg(false, 'fünf')], bad), 1,
+                       'previous=' + String(bad));
+  }
+});
+
+test('without segments nothing is used up', () => {
+  assert.strictEqual(ML.consumedSegments([], 0), 0);
+  assert.strictEqual(ML.consumedSegments(null, 0), 0);
+  assert.strictEqual(ML.consumedSegments(undefined, 0), 0);
+});

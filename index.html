@@ -1607,10 +1607,13 @@
       mic.processing = false;
       if (out.status === 'none') {
         // The pass is NOT over: the recogniser keeps running and the child
-        // gets to answer again into the same one. Only these segments are
-        // used up — and with them the speech that produced them, otherwise
-        // the end of the pass would report the same loss a second time.
-        pass.consumed = pass.segments.length;
+        // gets to answer again into the same one. Only the segments it can no
+        // longer change are used up — and with them the speech that produced
+        // them, otherwise the end of the pass would report the same loss a
+        // second time. Counting the unfinished ones as used up too cost the
+        // correct answer: assumeFinal finalises them by force, but the
+        // recogniser goes on revising the very same segment.
+        pass.consumed = ML.consumedSegments(pass.segments, pass.consumed);
         pass.sawSpeech = false;
         // The recogniser heard something, just no number in it. Exactly that
         // has to become visible — otherwise the child is left guessing what

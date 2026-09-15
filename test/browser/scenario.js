@@ -154,6 +154,31 @@ check('an unusable utterance asks again instead of running into the deadline',
         && !lines.slice(before6).some(l => l.includes('graded:')),
       lines.slice(before6).join(' / '));
 
+/* ---- 6b. the recogniser revises the very segment just reported on ----
+   Measured against the real one on 1x1: „And“ → „And I“ → „I“ → „1“ → „eins“,
+   all of it segment 0. The settle deadline finalised „I“ by force, found no
+   number and reported it — and counting that unfinished segment as used up
+   cut the „eins“ arriving in the same slot out of the grading. The child was
+   told "not understood" for an answer it had given correctly. Only a final
+   segment is beyond revision, so only a final one may count as used up. */
+await armQuestion();
+await sleep(400);
+const exp6b = window.__app.session.expected;
+const before6b = lines.length;
+window.__probe.rec._say(['I'], false);                 // interim, no number in it
+await speakLevel(300);
+window.__probe.rec._speechend();
+await sleep(window.__app.STT_SETTLE_MS + 700);         // the settle deadline reports it
+check('the unfinished utterance without a number is reported',
+      lines.slice(before6b).some(l => l.includes('no number in')),
+      lines.slice(before6b).join(' / ') || '(nothing logged)');
+const before6b2 = lines.length;
+window.__probe.rec._say([String(exp6b)], true);        // the SAME segment, now final
+await sleep(700);
+check('the revision of a segment reported on is still graded',
+      lines.slice(before6b2).some(l => l.includes('graded: ' + exp6b + ' ')),
+      lines.slice(before6b2).join(' / ') || '(nothing logged)');
+
 /* ---- 7. the recognition latency must not fire the settle deadline ----
    Measured on the user's machine: 1454 ms and 6170 ms between the real end of
    speaking and the first result, in the same run. Chrome reports the noise

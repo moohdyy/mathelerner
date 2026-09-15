@@ -13,7 +13,7 @@
      place it is written down; the menu reads it from here. Every commit that
      touches index.html or logic.js raises it exactly once — patch for fixes,
      minor for new behaviour. See CLAUDE.md. */
-  var VERSION = '1.0.5';
+  var VERSION = '1.0.6';
 
   /* ===================================================================
      Section 0 — languages
@@ -562,6 +562,35 @@
     out.alternative = pick.rank;
     out.text = pick.text;
     return out;
+  }
+
+  // How many segments an utterance already reported on has used up — the value
+  // that goes back into chooseSpokenAnswer as 'from'. Used up is only what the
+  // recogniser can no longer change: everything up to and including the LAST
+  // FINAL segment. It finalises in order, so an interim segment in front of a
+  // final one is settled too.
+  //
+  // The counting used to stop at the number of segments, final or not, and
+  // that swallowed correct answers: the settle deadline finalises an unfinished
+  // segment by force (assumeFinal), finds no number in it and reports it —
+  // but the recogniser keeps revising that very segment. Measured on 1x1:
+  // „And“ → „And I“ → „I“ → „1“ → „eins“, all of it segment 0. Counted as used
+  // up after „I“, the „eins“ was cut away and the child was told "not
+  // understood" for a correct answer.
+  //
+  // What was used up stays used up: 'previous' is the floor, so a recogniser
+  // taking a segment back cannot hand a previous utterance to the current
+  // question a second time. A broken 'previous' heals to what is final —
+  // never to "everything", which is the very loss described above.
+  function consumedSegments(segments, previous) {
+    var list = segments || [];
+    var done = typeof previous === 'number' && isFinite(previous) && previous > 0
+      ? Math.floor(previous)
+      : 0;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] && list[i].final && i + 1 > done) done = i + 1;
+    }
+    return done;
   }
 
   function spokenQuestion(a, b, lang) {
@@ -1160,6 +1189,7 @@
     parseNumber: parseNumber,
     parseNumbers: parseNumbers,
     chooseSpokenAnswer: chooseSpokenAnswer,
+    consumedSegments: consumedSegments,
     _spellGerman: spellGerman,
     spokenQuestion: spokenQuestion,
     BOX_MASTERED: BOX_MASTERED,
