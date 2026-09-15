@@ -113,6 +113,15 @@ function connect(url) {
   } finally {
     if (cdp) cdp.close();
     chrome.kill();
+    // server.close() only stops NEW connections; it waits for the open ones,
+    // and one of Chrome's keep-alive sockets survives chrome.kill() long
+    // enough to hold the process for ever. Measured: after the run the only
+    // handle left is a single Socket, zero pending requests, and the run never
+    // reaches its exit code. Every green run then looked like a failure,
+    // because the only way out was to kill it from outside.
+    if (typeof server.closeAllConnections === 'function') {
+      server.closeAllConnections();   // Node 18.2+
+    }
     server.close();
   }
 })().catch(e => { console.error('FEHLER:', e.message); process.exitCode = 2; });
