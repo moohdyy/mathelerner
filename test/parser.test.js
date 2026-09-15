@@ -153,6 +153,23 @@ test('digits win in every language', () => {
   assert.deepStrictEqual(ML.parseNumbers('12 or 24', 'en'), [12, 24]);
 });
 
+test('digits and number words mixed in one utterance are all found, in order', () => {
+  // The recogniser mixes formats within one transcript: the factors as
+  // digits, the result as a word. Digits used to END the search, so the
+  // result was invisible and the factor got graded instead — a correct
+  // answer thrown onto box 0.
+  assert.deepStrictEqual(ML.parseNumbers('2 mal 2 ist vier', 'de'), [2, 2, 4]);
+  assert.deepStrictEqual(ML.parseNumbers('2 times 2 is four', 'en'), [2, 2, 4]);
+  assert.deepStrictEqual(ML.parseNumbers('sechs mal 7', 'de'), [6, 7]);
+  assert.deepStrictEqual(ML.parseNumbers('das ist 4', 'de'), [4]);
+});
+
+test('a digit run does not interrupt a multi-word number elsewhere', () => {
+  // Joining spans letter words only; digits stand for themselves.
+  assert.deepStrictEqual(ML.parseNumbers('3 mal acht und vierzig', 'de'), [3, 48]);
+  assert.deepStrictEqual(ML.parseNumbers('3 times one hundred and five', 'en'), [3, 105]);
+});
+
 test('English: hesitation is not a number', () => {
   // "a" and "oh" are deliberately not in the table — otherwise the first
   // number found would be 0 or 1 and the card would be graded on a hesitation.

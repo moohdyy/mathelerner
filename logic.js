@@ -13,7 +13,7 @@
      place it is written down; the menu reads it from here. Every commit that
      touches index.html or logic.js raises it exactly once — patch for fixes,
      minor for new behaviour. See CLAUDE.md. */
-  var VERSION = '1.0.6';
+  var VERSION = '1.0.7';
 
   /* ===================================================================
      Section 0 — languages
@@ -419,31 +419,38 @@
   // ("zwei hundert drei und vierzig" = 6).
   var MAX_NUMBER_WORDS = 6;
 
-  // Walks the text left to right and returns EVERY number found. At each
-  // position the longest match wins, so "acht und vierzig" reads as 48 and not
-  // as 8; afterwards scanning continues behind the match.
+  // Walks the text left to right and returns EVERY number found — digits and
+  // number words alike, in the order they were spoken. The recogniser mixes
+  // both formats within one transcript ("2 mal 2 ist vier"); digits used to
+  // end the search early, which hid the spoken result behind the factors and
+  // graded a correct answer wrong. At each word position the longest match
+  // wins, so "acht und vierzig" reads as 48 and not as 8; a digit run stands
+  // for itself and never joins into a word number.
   function parseNumbers(text, lang) {
     if (text == null) return [];
     var loc = locale(lang);
-    var raw = String(text);
     var matches = [];
 
-    // Digits take precedence and are collected in full.
-    var digits = raw.match(/\d+/g);
-    if (digits) {
-      for (var d = 0; d < digits.length; d++) matches.push(parseInt(digits[d], 10));
-      return matches;
-    }
-
+    // Digit runs and letter runs in text order; everything else separates.
+    var raw = String(text).match(/\d+|\p{L}+/gu) || [];
     var table = numberWords(loc);
     var fillers = loc.fillerWords || [];
-    var words = raw.split(/\s+/).map(normalizeWord).filter(function (w) {
-      return w.length > 0 && fillers.indexOf(w) === -1;
-    });
+    // null marks a digit token's slot so joining cannot span it.
+    var values = [];   // parallel to words: the digit token's value, or null
+    var words = [];
+    for (var k = 0; k < raw.length; k++) {
+      if (/^\d/.test(raw[k])) { values.push(parseInt(raw[k], 10)); words.push(''); continue; }
+      var w = normalizeWord(raw[k]);
+      if (w.length === 0 || fillers.indexOf(w) !== -1) continue;
+      values.push(null);
+      words.push(w);
+    }
     var i = 0;
     while (i < words.length) {
+      if (values[i] !== null) { matches.push(values[i]); i += 1; continue; }
       var best = null, bestLen = 0, joined = '';
       for (var len = 1; len <= MAX_NUMBER_WORDS && i + len <= words.length; len++) {
+        if (values[i + len - 1] !== null) break;   // digits do not join
         joined += words[i + len - 1];
         var hit = table[joined];
         if (hit !== undefined) { best = hit; bestLen = len; }

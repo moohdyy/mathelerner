@@ -115,6 +115,16 @@ test('filler words around the number do not prevent grading', () => {
   assert.strictEqual(choose([seg(true, 'karotja genau 40')], { expected: 40 }).value, 40);
 });
 
+test('a transcript mixing digits and words is graded on the spoken result', () => {
+  // The recogniser mixes formats within one sentence: "2 mal 2 ist vier".
+  // Digits used to end the number search, the "vier" was never seen, and the
+  // factor 2 was graded against the expected 4 — a correct answer thrown
+  // onto box 0.
+  const out = choose([seg(true, '2 mal 2 ist vier')], { expected: 4 });
+  assert.strictEqual(out.status, 'value');
+  assert.strictEqual(out.value, 4);
+});
+
 test('a final result without any number is not graded', () => {
   const out = choose([seg(true, 'karotte')]);
   assert.strictEqual(out.status, 'none');
