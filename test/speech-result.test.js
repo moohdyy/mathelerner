@@ -125,11 +125,27 @@ test('a transcript mixing digits and words is graded on the spoken result', () =
   assert.strictEqual(out.value, 4);
 });
 
-test('a final result without any number is not graded', () => {
-  const out = choose([seg(true, 'karotte')]);
+test('a concluded result without any number is not graded', () => {
+  const out = choose([seg(true, 'karotte')], { assumeFinal: true });
   assert.strictEqual(out.status, 'none');
   assert.strictEqual(out.value, null);
   assert.strictEqual(out.heard, 'karotte');
+});
+
+test('a final segment without a number does not conclude the utterance', () => {
+  // Continuously the recogniser finalises a hesitation on its own and brings
+  // the number in the next segment. Reporting the first at once told the
+  // child "not understood" right before its correct answer was graded.
+  const out = choose([seg(true, 'äh')]);
+  assert.strictEqual(out.status, 'pending');
+  assert.strictEqual(out.value, null);
+  assert.strictEqual(out.heard, 'äh');
+});
+
+test('the number following a finalised hesitation is graded', () => {
+  const out = choose([seg(true, 'äh'), seg(true, 'fünfundvierzig')]);
+  assert.strictEqual(out.status, 'value');
+  assert.strictEqual(out.value, 45);
 });
 
 /* ---------- segments with differing alternative counts ---------- */
@@ -141,8 +157,9 @@ test('a segment with fewer alternatives falls back to its last one', () => {
 });
 
 test('empty alternatives do not produce a candidate', () => {
-  assert.strictEqual(choose([seg(true)]).status, 'none');
-  assert.strictEqual(choose([seg(true, '')]).status, 'none');
+  assert.strictEqual(choose([seg(true)], { assumeFinal: true }).status, 'none');
+  assert.strictEqual(choose([seg(true, '')], { assumeFinal: true }).status, 'none');
+  assert.strictEqual(choose([seg(true, '')]).status, 'pending');
 });
 
 /* ---------- the language is handed in, never read ---------- */
@@ -151,7 +168,7 @@ test('the same words are graded per language', () => {
   assert.strictEqual(
     choose([seg(true, 'forty five')], { lang: 'en' }).value, 45);
   assert.strictEqual(
-    choose([seg(true, 'forty five')], { lang: 'de' }).status, 'none');
+    choose([seg(true, 'forty five')], { lang: 'de', assumeFinal: true }).status, 'none');
 });
 
 /* ---------- segments already dealt with stay out ---------- */
@@ -178,7 +195,7 @@ test('a number in a skipped segment is not graded', () => {
   // The old utterance held the answer to the PREVIOUS question. Grading it
   // would answer the new question with the old words.
   assert.strictEqual(choose([seg(true, 'fünfundvierzig'), seg(true, 'weiß nicht')],
-                            { from: 1 }).status, 'none');
+                            { from: 1, assumeFinal: true }).status, 'none');
 });
 
 test('from beyond the last segment grades nothing', () => {

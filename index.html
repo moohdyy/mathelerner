@@ -1601,11 +1601,21 @@
         // the proof the microphone is working — but grade nothing: a prefix of
         // the answer would cost the card a box.
         if (out.heard !== '') micSetEcho(out.heard);
+        // Nothing numeric stands there yet — a hesitation like „Äh“, which the
+        // recogniser may well have finalised already. The end of speaking it
+        // marked is not the end of the answer; left standing, the answer that
+        // follows would be timed from the end of the hesitation. The next
+        // result marks it afresh.
+        if (ML.parseNumber(out.heard, lang()) === null) stt.spokeEndAt = 0;
         return out.status;
       }
       mic.speaking = false;
       mic.processing = false;
       if (out.status === 'none') {
+        // Only a concluded utterance gets here (assumeFinal: the settle
+        // deadline, the end of the pass, the overall deadline) — a final
+        // segment without a number from the result handler stays pending, as
+        // the number may follow in the next segment.
         // The pass is NOT over: the recogniser keeps running and the child
         // gets to answer again into the same one. Only the segments it can no
         // longer change are used up — and with them the speech that produced

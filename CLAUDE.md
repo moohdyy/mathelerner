@@ -9,7 +9,7 @@ Arbeiten am Code wichtig ist und sich nicht aus einer einzelnen Datei ergibt.
 ## Kommandos
 
 ```
-node --test test/*.test.js           # gesamte Suite (aktuell 205 Tests)
+node --test test/*.test.js           # gesamte Suite (aktuell 210 Tests)
 node --test test/parser.test.js      # eine einzelne Datei
 node test/browser/run.js             # die Browser-Prüfungen für index.html
 python3 -m http.server 8000          # zum Ausprobieren, dann http://localhost:8000/
@@ -49,7 +49,7 @@ hineingereicht — `opts.now`, `opts.rng`, das Storage-Objekt mit
 `getItem`/`setItem`. Die Sprache gehört in dieselbe Reihe: sie wird als
 Parameter hineingereicht, `logic.js` liest sie nie selbst aus einem Profil.
 Genau das macht Scheduler, Speicherschicht und Textbildung ohne Browser
-testbar, und genau daran hängen die 205 Tests.
+testbar, und genau daran hängen die 210 Tests.
 
 Die einzige erlaubte Ausnahme ist `typeof self !== 'undefined' ? self : this`
 in der UMD-Hülle. `logic.js` muss außerdem CommonJS-kompatibel bleiben — kein
@@ -257,6 +257,14 @@ sind mehrfach falsch umgesetzt worden:
   keine Zahl erkannt, Mikrofon streikt, Netzwerk weg → Karte unverändert,
   Aufgabe erneut stellen. Ein Kind mit schlechtem Mikrofon würde sonst in
   Minuten wochenlangen Lernfortschritt zerstören.
+- **Ein finales Segment ohne Zahl beendet die Äußerung nicht.** Im
+  Dauermodus finalisiert der Erkenner ein Zögern gern als eigenes Segment —
+  „Äh“ final, „sechs“ im nächsten. Wurde das erste sofort gemeldet, sah das
+  Kind „Nicht verstanden“ und Sekunden später die richtige Wertung.
+  `ML.chooseSpokenAnswer` liefert `'none'` deshalb nur mit `assumeFinal`, also
+  von Nachfrist, Durchgangsende oder Gesamtfrist; aus dem `result`-Handler
+  bleibt es `'pending'`. Der dabei gesetzte Sprechschluss wird freigegeben,
+  sonst würde die folgende Antwort ab dem Ende des Zögerns gemessen.
 - **Ein unfertiges Erkennungsergebnis wertet nichts.** Der Erkenner liefert
   wachsende Präfixe — „4“ steht sekundenlang da, bevor „45“ daraus wird. Wer
   das erste Ergebnis mit einer Zahl wertet, wertet das Präfix und wirft die

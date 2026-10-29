@@ -13,7 +13,7 @@
      place it is written down; the menu reads it from here. Every commit that
      touches index.html or logic.js raises it exactly once — patch for fixes,
      minor for new behaviour. See CLAUDE.md. */
-  var VERSION = '1.0.7';
+  var VERSION = '1.0.8';
 
   /* ===================================================================
      Section 0 — languages
@@ -490,7 +490,8 @@
   //
   // Three outcomes:
   //   'pending' — the utterance is not finished; grade nothing, show `heard`.
-  //   'none'    — it is finished and holds no number; ask again, grade nothing.
+  //   'none'    — it is concluded (assumeFinal) and holds no number; ask
+  //               again, grade nothing.
   //   'value'   — `value` is the answer, `text` the wording it came from.
   //
   // `assumeFinal` treats every segment as finished. The end of a listening
@@ -537,7 +538,14 @@
     // alternatives contributes its last.
     var ranks = 0;
     for (i = 0; i < graded.length; i++) if (graded[i].length > ranks) ranks = graded[i].length;
-    if (ranks === 0) { out.status = 'none'; return out; }
+    // Without a number, only a concluded utterance is a failure. A FINAL
+    // segment does not conclude it: continuously the recogniser finalises a
+    // hesitation on its own — „Äh“ final, then „sechs“ in the next segment —
+    // and reporting the first at once told the child "not understood" for an
+    // answer that was just arriving. The settle deadline, the end of the pass
+    // and the overall deadline conclude it (assumeFinal) once nothing follows.
+    var noNumber = o.assumeFinal ? 'none' : 'pending';
+    if (ranks === 0) { out.status = noNumber; return out; }
 
     var candidates = [];
     for (var r = 0; r < ranks; r++) {
@@ -550,7 +558,7 @@
       var numbers = parseNumbers(text, o.lang);
       if (numbers.length > 0) candidates.push({ rank: r, text: text, numbers: numbers });
     }
-    if (candidates.length === 0) { out.status = 'none'; return out; }
+    if (candidates.length === 0) { out.status = noNumber; return out; }
 
     // If the expected number appears anywhere in any alternative, it counts.
     var pick = null;
