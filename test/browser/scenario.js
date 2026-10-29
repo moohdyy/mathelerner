@@ -66,6 +66,15 @@ await speakLevel(300);
 window.__probe.rec._say(['keine ahnung'], true);   // final, but no number in it
 await sleep(300);
 
+// A final segment without a number does not conclude the utterance — the
+// number may follow in the next segment („Äh“ | „sechs“). Reporting it at once
+// told the child "not understood" right before the correct answer was graded.
+check('a final segment without a number is not reported at once',
+      window.__app.session.startedAt === clockAtQuestion
+        && !lines.slice(-3).some(l => l.includes('asking again') || l.includes('no number in')),
+      lines.slice(-3).join(' / '));
+await sleep(window.__app.STT_SETTLE_MS + 400);     // nothing follows: now it is
+
 check('an utterance without a number grades nothing',
       !lines.slice(-3).some(l => l.includes('graded:')),
       lines.slice(-3).join(' / '));
@@ -112,6 +121,25 @@ check('the latency stays out of the second measurement too',
       g2 && sinceRetry - g2.ms > 700,
       g2 && ('gap ' + (sinceRetry - g2.ms) + ' ms between end of speaking and now'));
 
+/* ---- 4b. a finalised hesitation in front of the answer ----
+   The reported bug: the recogniser finalises „Äh“ as a segment of its own and
+   brings the correct number in the next one. The first used to be reported at
+   once — "not understood" — and the correct answer graded a moment later. */
+await armQuestion();
+await sleep(400);
+const exp4b = window.__app.session.expected;
+const before4b = lines.length;
+window.__probe.rec._say(['äh'], true);                       // segment 0, final
+await sleep(500);
+window.__probe.rec._say([String(exp4b)], true);              // segment 1, the answer
+await sleep(300);
+check('a finalised hesitation does not report "not understood"',
+      !lines.slice(before4b).some(l => l.includes('asking again') || l.includes('no number in')),
+      lines.slice(before4b).join(' / '));
+check('the answer behind the hesitation is graded',
+      lines.slice(before4b).some(l => l.includes('graded: ' + exp4b + ' ')),
+      lines.slice(before4b).join(' / '));
+
 /* ---- 5. an answer that never becomes final is still graded ----
    The real-world failure: "[0 interim] 12" on 3x4 and "One" on 1x1 — correct,
    never marked final, lost to the deadline. */
@@ -145,9 +173,9 @@ const before6 = lines.length;
 window.__probe.rec._say(['bla'], false);               // speech, but nothing usable
 await speakLevel(300);
 window.__probe.rec._speechend();
-// An INTERIM result without a number has to wait out the settle deadline: the
-// recogniser may still turn it into something usable. A FINAL one without a
-// number is reported at once — that path runs through the result handler.
+// A result without a number has to wait out the settle deadline, interim or
+// final alike: the recogniser may still turn it into something usable, or
+// bring the number in the next segment.
 await sleep(window.__app.STT_SETTLE_MS + 700);
 check('an unusable utterance asks again instead of running into the deadline',
       lines.slice(before6).some(l => l.includes('asking again'))
